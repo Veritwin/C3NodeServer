@@ -1,0 +1,39 @@
+{
+  "name": "c3-node-server",
+  "version": "0.0.1",
+  "description": "Catenis Colored Coins (C3) node server",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node ./src/server.js"
+  },
+  "keywords": [
+    "Catenis",
+    "Catenis Colored Coins",
+    "C3",
+    "node",
+    "server"
+  ],
+  "private": true,
+  "author": "Cláudio de Castro",
+  "dependencies": {
+    "async": "^2.1.4",
+    "basic-auth": "^1.1.0",
+    "bitcoin-async": "^1.0.0",
+    "bitcoinjs-lib": "3.0.2",
+    "body-parser": "^1.17.1",
+    "cc-get-assets-outputs": "^1.2.0",
+    "cc-transaction": "^1.2.0",
+    "cors": "^2.8.3",
+    "express": "^4.15.2",
+    "iniparser": "^1.0.5",
+    "level": "^1.6.0",
+    "lodash": "^4.17.4",
+    "morgan": "^1.8.1",
+    "ospath": "^1.2.2",
+    "path-extra": "^4.1.0",
+    "redis": "^2.6.5",
+    "socket.io": "^1.7.3",
+    "toposort": "^1.0.3"
+  },
+  "repository": "git@bitbucket.org:blockchainofthings/c3nodeserver.git"
+}
