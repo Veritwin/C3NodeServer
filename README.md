@@ -15,7 +15,8 @@ The following is required to properly install and run the Colored Coins node ser
 
 ## Configuration settings
 
-After installation, make sure that the following parameters in the properties.conf file are properly configured:
+After installation, make sure that the following parameters in the properties.conf— or server_props.conf or
+parser_props.conf as appropriate— configuration file are properly configured:
 
 - ***redisHost*** - Host name/IP address assigned to Redis database
 - ***redisPort*** - IP port assigned to Redis database (Redis default: 6379)

@@ -4,7 +4,9 @@
   "description": "Catenis Colored Coins (C3) node server",
   "main": "src/server.js",
   "scripts": {
-    "start": "node ./src/server.js"
+    "start": "node ./src/server.js",
+    "start_server": "node ./src/server.js --config=server_props.conf",
+    "start_parser": "node ./src/server.js --config=parser_props.conf"
   },
   "keywords": [
     "Catenis",
