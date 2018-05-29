@@ -1,6 +1,8 @@
+const ccProtocol = 0x4343; // Original Colored Coins protocol
+const c3Protocol = 0x4333; // Catenis Colored Coins protocol
 var async = require('async')
-var CCTransaction = require('cc-transaction')
-var getAssetsOutputs = require('cc-get-assets-outputs')
+var CCTransaction = require('catenis-colored-coins/cc-transaction')
+var getAssetsOutputs = require('catenis-colored-coins/cc-get-assets-outputs')
 var bitcoinjs = require('bitcoinjs-lib')
 var bufferReverse = require('buffer-reverse')
 var _ = require('lodash')
@@ -147,17 +149,21 @@ module.exports = function (args) {
     cb('Unknown block state')
   }
 
-  var checkVersion = function (hex) {
-    var version = hex.toString('hex').substring(0, 4)
-    return (version.toLowerCase() === '4343')
-  }
+  const protocolToHex = function (value) {
+    return Buffer.from(new Uint8Array([value >> 8, value]).buffer).toString('hex')
+  };
+
+  const checkProtocol = function (hex) {
+    const hexProtocol = hex.toString('hex').substring(0, 4).toLowerCase();
+    return (hexProtocol === protocolToHex(ccProtocol) || hexProtocol === protocolToHex(c3Protocol));
+  };
 
   var getColoredData = function (transaction) {
     var coloredData = null
     transaction.vout.some(function (vout) {
       if (!vout.scriptPubKey || !vout.scriptPubKey.type === 'nulldata') return null
       var hex = vout.scriptPubKey.asm.substring('OP_RETURN '.length)
-      if (checkVersion(hex)) {
+      if (checkProtocol(hex)) {
         try {
           coloredData = CCTransaction.fromHex(hex).toJson()
         } catch (e) {
