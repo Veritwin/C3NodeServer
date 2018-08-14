@@ -62,7 +62,7 @@ module.exports = function (args) {
     if (!info.bitcoindbusy) return cb()
     return setTimeout(function() {
       console.log('Waiting for bitcoind...')
-      bitcoin.cmd('getinfo', [], function (err) {
+      bitcoin.cmd('getblockchaininfo', [], function (err) {
         if (err) {
           info.error = {}
           if (err.code) {
@@ -1157,14 +1157,14 @@ module.exports = function (args) {
     var btcInfo
     async.waterfall([
       function (cb) {
-        bitcoin.cmd('getinfo', [], cb)
+        bitcoin.cmd('getblockchaininfo', [], cb)
       },
       function (_btcInfo, cb) {
         if (typeof _btcInfo === 'function') {
           cb = _btcInfo
           _btcInfo = null
         }
-        if (!_btcInfo) return cb('No reply from getinfo')
+        if (!_btcInfo) return cb('No reply from getblockchaininfo')
         btcInfo = _btcInfo
         bitcoin.cmd('getblockhash', [btcInfo.blocks], cb)
       },
