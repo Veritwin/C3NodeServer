@@ -457,19 +457,12 @@ module.exports = function (args) {
   }
 
   var updateParsedMempoolTxids = function (txids, cb) {
-    async.waterfall([
-      function (cb) {
-        redis.hget('mempool', 'parsed', cb)
-      },
-      function (parsedMempool, cb) {
-        parsedMempool = JSON.parse(parsedMempool || '[]')
-        parsedMempool = parsedMempool.concat(txids)
-        parsedMempool = _.uniq(parsedMempool)
-        redis.hmset('mempool', 'parsed', JSON.stringify(parsedMempool), cb)
-      }
-    ], function (err) {
-      cb(err)
-    })
+    if (txids.length > 0) {
+      redis.sadd('mempool', txids, cb);
+    }
+    else {
+      cb();
+    }
   }
 
   var updateMempoolTransactionUtxosChanges = function (transaction, utxosChanges, cb) {
@@ -650,28 +643,43 @@ module.exports = function (args) {
   }
 
   var getNewMempoolTxids = function (mempoolTxids, cb) {
-    redis.hget('mempool', 'parsed', function (err, mempool) {
-      if (err) return cb(err)
-      mempool = mempool || '[]'
-      var parsedMempoolTxids = JSON.parse(mempool)
-      newMempoolTxids = _.difference(mempoolTxids, parsedMempoolTxids)
-      cb(null, newMempoolTxids)
-    })
+    const newMempoolTxids = [];
+
+    async.each(mempoolTxids, function (mempoolTxid, cb) {
+      redis.sismember('mempool', mempoolTxid, function (err, exists) {
+        if (err) return cb(err);
+
+        if (!exists) {
+          newMempoolTxids.push(mempoolTxid);
+        }
+
+        cb();
+      });
+    }, function (err) {
+      if (err) return cb(err);
+
+      cb(null, newMempoolTxids);
+    });
   }
 
   var getNewMempoolTransaction = function (newMempoolTxids, cb) {
-    var commandsArr = newMempoolTxids.map(function (txid) {
-      return { method: 'getrawtransaction', params: [txid, 0]}
-    })
-    var newMempoolTransactions = []
-    bitcoin.cmd(commandsArr, function (rawTransaction, cb) {
-      var newMempoolTransaction = decodeRawTransaction(bitcoinjs.Transaction.fromHex(rawTransaction))
-      newMempoolTransactions.push(newMempoolTransaction)
-      cb()
-    },
-    function (err) {
-      cb(err, newMempoolTransactions)
-    })
+    if (newMempoolTxids.length > 0) {
+      var commandsArr = newMempoolTxids.map(function (txid) {
+        return {method: 'getrawtransaction', params: [txid, 0]}
+      })
+      var newMempoolTransactions = []
+      bitcoin.cmd(commandsArr, function (rawTransaction, cb) {
+            var newMempoolTransaction = decodeRawTransaction(bitcoinjs.Transaction.fromHex(rawTransaction))
+            newMempoolTransactions.push(newMempoolTransaction)
+            cb()
+          },
+          function (err) {
+            cb(err, newMempoolTransactions)
+          })
+    }
+    else {
+      cb(null, []);
+    }
   }
 
   var orderByDependencies = function (transactions) {
@@ -692,28 +700,39 @@ module.exports = function (args) {
   }
 
   var parseNewMempoolTransactions = function (newMempoolTransactions, cb) {
-    newMempoolTransactions = orderByDependencies(newMempoolTransactions)
-    var nonColoredTxids  = []
-    async.eachSeries(newMempoolTransactions, function (newMempoolTransaction, cb) {
-      var utxosChanges = {
-        used: {},
-        unused: {}
-      }
-      var coloredData = getColoredData(newMempoolTransaction)
-      if (!coloredData) {
-        nonColoredTxids.push(newMempoolTransaction.txid)
-        emitter.emit('newtransaction', newMempoolTransaction)
-        return process.nextTick(cb)
-      }
-      newMempoolTransaction.ccdata = [coloredData]
-      parseTransaction(newMempoolTransaction, utxosChanges, -1, function (err) {
+    if (newMempoolTransactions.length > 0) {
+      newMempoolTransactions = orderByDependencies(newMempoolTransactions)
+      var processedTxids = []
+      async.eachSeries(newMempoolTransactions, function (newMempoolTransaction, cb) {
+        var utxosChanges = {
+          used: {},
+          unused: {}
+        }
+        var coloredData = getColoredData(newMempoolTransaction)
+        if (!coloredData) {
+          processedTxids.push(newMempoolTransaction.txid)
+          emitter.emit('newtransaction', newMempoolTransaction)
+          return process.nextTick(cb)
+        }
+        newMempoolTransaction.ccdata = [coloredData]
+        parseTransaction(newMempoolTransaction, utxosChanges, -1, function (err) {
+          if (err) return cb(err)
+          updateMempoolTransactionUtxosChanges(newMempoolTransaction, utxosChanges, function (err) {
+            if (err) return cb(err);
+
+            processedTxids.push(newMempoolTransaction.txid);
+            cb();
+          })
+        })
+      }, function (err) {
         if (err) return cb(err)
-        updateMempoolTransactionUtxosChanges(newMempoolTransaction, utxosChanges, cb)
+        // Note: changed to update all processed txs and not only non-colored txs
+        updateParsedMempoolTxids(processedTxids, cb)
       })
-    }, function (err) {
-      if (err) return cb(err)
-      updateParsedMempoolTxids(nonColoredTxids, cb)
-    })
+    }
+    else {
+      cb();
+    }
   }
 
   var updateInfo = function (cb) {
