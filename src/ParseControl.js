@@ -9,30 +9,32 @@ function ParseControl(loggingOn = false) {
   this.pendingProcs = [];
 }
 
-ParseControl.prototype.doParse = function (parseFunc) {
+ParseControl.prototype.doParse = function (parseFunc, parseCallback) {
   log.call(this, '>>>>>> ParseControl: doParse() method called');
   if (this.isDoingParse) {
     log.call(this, '>>>>>> ParseControl: already doing parse; postpone new parsing');
     this.pendingParses.push({
       timestamp: Date.now(),
-      parseFunc: parseFunc
+      parseFunc: parseFunc,
+      parseCallback: parseCallback
     });
   }
   else {
     this.isDoingParse = true;
 
+    log.call(this, '>>>>>> ParseControl: starting parsing');
     try {
-      log.call(this, '>>>>>> ParseControl: starting parsing');
-      parseFunc(finalizeParsing.bind(this));
+      parseFunc(finalizeParsing.bind(this, parseCallback));
     }
     catch (err) {
-      finalizeParsing.bind(this);
+      log.call(this, '>>>>>> ParseControl: error executing parse function:', err);
+      finalizeParsing.call(this, parseCallback);
     }
   }
 };
 
 ParseControl.prototype.doProcess = function (procFunc) {
-  log.call(this, '>>>>>> ParseControl: doProcess() method called');
+  log.call(this, '>>>>>> ParseControl: doProcess() method called (process func:', procFunc.name, '\b)');
   if (this.isDoingParse) {
     log.call(this, '>>>>>> ParseControl: doing parsing; postpone new processing');
     this.pendingProcs.push({
@@ -41,12 +43,17 @@ ParseControl.prototype.doProcess = function (procFunc) {
     })
   }
   else {
-    log.call(this, '>>>>>> ParseControl: do processing');
-    procFunc();
+    log.call(this, '>>>>>> ParseControl: do processing (process func:', procFunc.name, '\b)');
+    try {
+      procFunc();
+    }
+    catch (err) {
+      log.call(this, '>>>>>> ParseControl: error executing process function (process func:', procFunc.name, '\b):', err);
+    }
   }
 };
 
-function finalizeParsing() {
+function finalizeParsing(parseCallback, err) {
   log.call(this, '>>>>>> ParseControl: finalizing parsing');
   this.isDoingParse = false;
 
@@ -73,15 +80,31 @@ function finalizeParsing() {
       this.pendingProcs = newPendingProcs;
 
       processNowProcs.forEach((procEntry) => {
-        log.call(this, '>>>>>> ParseControl: do pending processing');
-        procEntry.procFunc()
+        log.call(this, '>>>>>> ParseControl: do pending processing (process func:', procEntry.procFunc.name, '\b)');
+        try {
+          procEntry.procFunc();
+        }
+        catch (err) {
+          log.call(this, '>>>>>> ParseControl: error executing process function (process func:', procEntry.procFunc.name, '\b):', err);
+        }
       });
     }
   }
 
   if (parseEntry !== undefined) {
     log.call(this, '>>>>>> ParseControl: prepare to do pending parsing');
-    this.doParse(parseEntry.parseFunc);
+    if (err) {
+      log.call(this, '>>>>>> ParseControl: error during last parsing:', err);
+    }
+
+    this.doParse(parseEntry.parseFunc, parseEntry.parseCallback || parseCallback);
+  }
+  else if (parseCallback) {
+    log.call(this, '>>>>>> ParseControl: calling parse callback');
+    parseCallback(err);
+  }
+  else if (err) {
+    log.call(this, '>>>>>> ParseControl: error during last parsing:', err);
   }
 }
 

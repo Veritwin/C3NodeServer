@@ -1,3 +1,4 @@
+// TODO: isolate blockchain parsing code and place it in a separate process started as a subprocess of the (main) server process. Then all parse control should be done via that subprocess
 const ccProtocol = 0x4343; // Original Colored Coins protocol
 const c3Protocol = 0x4333; // Catenis Colored Coins protocol
 var async = require('async')
@@ -761,7 +762,7 @@ module.exports = function (args) {
 
   var finishParsing = function (err)  {
     if (err) console.error(err)
-    parseProcedure()
+    parseControl.doParse(parseProcedure, finishParsing);
   }
 
   var importAddresses = function (args, cb) {
@@ -832,8 +833,8 @@ module.exports = function (args) {
         progressCallback(info)
       }
     }, 5000);
-    if (!addresses || !Array.isArray(addresses)) return parseProcedure()
-    importAddresses({addresses: addresses, reindex: true}, parseProcedure)
+    if (!addresses || !Array.isArray(addresses)) return parseControl.doParse(parseProcedure, finishParsing);
+    importAddresses({addresses: addresses, reindex: true}, function () {parseControl.doParse(parseProcedure, finishParsing)})
   }
 
   var infoPopulate = function (cb) {
@@ -852,7 +853,7 @@ module.exports = function (args) {
       getNextBlock,
       checkNextBlock,
       conditionalParseNextBlock
-    ], cb !== undefined ? cb : finishParsing)
+    ], cb)
   }
 
   var parseNow = function (args, cb) {
@@ -870,13 +871,13 @@ module.exports = function (args) {
     var numOfConfirmations = args.numOfConfirmations || 0
 
     if (args.waitForParsing) {
-      parseControl.doProcess(innerProcess)
+      parseControl.doProcess(getAddressesUtxos_innerProcess)
     }
     else {
-      innerProcess()
+      getAddressesUtxos_innerProcess()
     }
 
-    function innerProcess() {
+    function getAddressesUtxos_innerProcess() {
       bitcoin.cmd('getblockcount', [], function (err, count) {
         if (err) return cb(err)
         bitcoin.cmd('listunspent', [numOfConfirmations, 99999999, addresses], function (err, utxos) {
@@ -906,13 +907,13 @@ module.exports = function (args) {
     var numOfConfirmations = args.numOfConfirmations || 0
 
     if (args.waitForParsing) {
-      parseControl.doProcess(innerProcess)
+      parseControl.doProcess(getUtxos_innerProcess)
     }
     else {
-      innerProcess()
+      getUtxos_innerProcess()
     }
 
-    function innerProcess() {
+    function getUtxos_innerProcess() {
       bitcoin.cmd('getblockcount', [], function (err, count) {
         if (err) return cb(err)
         bitcoin.cmd('listunspent', [numOfConfirmations, 99999999], function (err, utxos) {
@@ -942,13 +943,13 @@ module.exports = function (args) {
     var txouts = _.cloneDeep(args.txouts)
 
     if (args.waitForParsing) {
-      parseControl.doProcess(innerProcess)
+      parseControl.doProcess(getTxouts_innerProcess)
     }
     else {
-      innerProcess()
+      getTxouts_innerProcess()
     }
 
-    function innerProcess() {
+    function getTxouts_innerProcess() {
       async.each(txouts, function (txout, cb) {
         redis.hget('utxos', txout.txid + ':' + txout.vout, function (err, assets) {
           if (err) return cb(err)
@@ -1053,13 +1054,13 @@ module.exports = function (args) {
     var addresses = args.addresses
 
     if (args.waitForParsing) {
-      parseControl.doProcess(innerProcess)
+      parseControl.doProcess(getAddressesTransactions_innerProcess)
     }
     else {
-      innerProcess()
+      getAddressesTransactions_innerProcess()
     }
 
-    function innerProcess() {
+    function getAddressesTransactions_innerProcess() {
       var next = true
       var txs = {}
       var txids = []
@@ -1199,13 +1200,13 @@ module.exports = function (args) {
     const numOfConfirmations = args.numOfConfirmations || 0;
 
     if (args.waitForParsing) {
-      parseControl.doProcess(innerProcess)
+      parseControl.doProcess(getAssetHolders_innerProcess)
     }
     else {
-      innerProcess()
+      getAssetHolders_innerProcess()
     }
 
-    function innerProcess() {
+    function getAssetHolders_innerProcess() {
       // Get addresses associated with asset
       redis.hget('asset-addresses', assetId, function (err, strAddresses) {
         if (err) cb(err);
@@ -1285,13 +1286,13 @@ module.exports = function (args) {
     const numOfConfirmations = args.numOfConfirmations || 0;
 
     if (args.waitForParsing) {
-      parseControl.doProcess(innerProcess)
+      parseControl.doProcess(getAssetBalance_innerProcess)
     }
     else {
-      innerProcess()
+      getAssetBalance_innerProcess()
     }
 
-    function innerProcess() {
+    function getAssetBalance_innerProcess() {
       // Get addresses associated with asset
       redis.hget('asset-addresses', assetId, function (err, strAddresses) {
         if (err) cb(err);
@@ -1373,13 +1374,13 @@ module.exports = function (args) {
     const numOfConfirmations = args.numOfConfirmations || 0;
 
     if (args.waitForParsing) {
-      parseControl.doProcess(innerProcess)
+      parseControl.doProcess(getMultiAssetBalance_innerProcess)
     }
     else {
-      innerProcess()
+      getMultiAssetBalance_innerProcess()
     }
 
-    function innerProcess() {
+    function getMultiAssetBalance_innerProcess() {
       if (assetIds.length > 0) {
         const assetBalance = {};
 
@@ -1480,13 +1481,13 @@ module.exports = function (args) {
     const assetId = args.assetId;
 
     if (args.waitForParsing) {
-      parseControl.doProcess(innerProcess)
+      parseControl.doProcess(getAssetIssuance_innerProcess)
     }
     else {
-      innerProcess()
+      getAssetIssuance_innerProcess()
     }
 
-    function innerProcess() {
+    function getAssetIssuance_innerProcess() {
       // Get transactions used to issue asset
       redis.hget('asset-issuance', assetId, function (err, strIssuance) {
         if (err) cb(err);
@@ -1560,13 +1561,13 @@ module.exports = function (args) {
     const assetId = args.assetId;
 
     if (args.waitForParsing) {
-      parseControl.doProcess(innerProcess)
+      parseControl.doProcess(getAssetIssuingAddress_innerProcess)
     }
     else {
-      innerProcess()
+      getAssetIssuingAddress_innerProcess()
     }
 
-    function innerProcess() {
+    function getAssetIssuingAddress_innerProcess() {
       // Get transactions used to issue asset
       redis.hget('asset-issuance', assetId, function (err, strIssuance) {
         if (err) cb(err);
@@ -1611,13 +1612,13 @@ module.exports = function (args) {
     const numOfConfirmations = args.numOfConfirmations || 0;
 
     if (args.waitForParsing) {
-      parseControl.doProcess(innerProcess)
+      parseControl.doProcess(getOwningAssets_innerProcess)
     }
     else {
-      innerProcess()
+      getOwningAssets_innerProcess()
     }
 
-    function innerProcess() {
+    function getOwningAssets_innerProcess() {
       if (addresses.length > 0) {
         // Retrieve UTXOs associated with given addresses
         bitcoin.cmd('listunspent', [numOfConfirmations, 99999999, addresses], function (err, utxos) {
