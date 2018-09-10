@@ -16,6 +16,7 @@ var BigNumber = require('bignumber.js');
 
 var mainnetFirstColoredBlock = 364548
 var testnetFirstColoredBlock = 462320
+var regtestFirstColoredBlock = 1;
 
 var blockStates = {
   NOT_EXISTS: 0,
@@ -86,7 +87,7 @@ module.exports = function (args) {
   var getNextBlockHeight = function (cb) {
     redis.hget('blocks', 'lastBlockHeight', function (err, lastBlockHeight) {
       if (err) return cb(err)
-      lastBlockHeight = lastBlockHeight || ((network === 'mainnet' ? mainnetFirstColoredBlock : testnetFirstColoredBlock) - 1)
+      lastBlockHeight = lastBlockHeight || ((network === 'mainnet' ? mainnetFirstColoredBlock : (network === 'regtest' ? regtestFirstColoredBlock : testnetFirstColoredBlock)) - 1)
       lastBlockHeight = parseInt(lastBlockHeight)
       cb(null, lastBlockHeight + 1)
     })
