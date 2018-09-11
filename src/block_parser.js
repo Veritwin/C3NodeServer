@@ -762,7 +762,7 @@ module.exports = function (args) {
   }
 
   var finishParsing = function (err)  {
-    if (err) console.error(err)
+    if (err) console.error(new Date().toISOString(), '-', err)
     parseControl.doParse(parseProcedure, finishParsing);
   }
 

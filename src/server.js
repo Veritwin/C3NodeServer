@@ -1,6 +1,7 @@
 var express = require('express')
 var bodyParser = require('body-parser')
 var fs = require('fs')
+var util = require('util');
 var http = require('http')
 var https = require('https')
 var morgan = require('morgan')('dev')
@@ -106,7 +107,7 @@ if (config.parser.start) {
     }
 
     if (readInfo) {
-      console.log('info', readInfo)
+      console.log(util.format('%s - info', new Date().toISOString(), readInfo))
     }
   })
 }
