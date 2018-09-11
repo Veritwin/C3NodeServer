@@ -222,18 +222,18 @@ module.exports = function (propertiesFile) {
   }
 
   properties.server = properties.server || {}
-  properties.server.httpPort = properties.server.httpPort || process.env.CCFULLNODE_HTTP_PORT || process.env.PORT || 8043 // Optional
-  properties.server.httpsPort = properties.server.httpsPort || process.env.CCFULLNODE_HTTPS_PORT || 443 // Optional
-  properties.server.host = properties.server.host || process.env.CCFULLNODE_HOST || '0.0.0.0' // Optional
+  properties.server.httpPort = properties.server.httpPort || process.env.C3NODESERV_HTTP_PORT || process.env.PORT || 8043 // Optional
+  properties.server.httpsPort = properties.server.httpsPort || process.env.C3NODESERV_HTTPS_PORT || 443 // Optional
+  properties.server.host = properties.server.host || process.env.C3NODESERV_HOST || '0.0.0.0' // Optional
 
-  properties.server.usessl = (properties.server.usessl || process.env.CCFULLNODE_USE_SSL === 'true') // Optional
-  properties.server.useBoth = (properties.server.useBoth || process.env.CCFULLNODE_USE_BOTH === 'true') // both HTTP and HTTPS - Optional
-  properties.server.privateKeyPath = properties.server.privateKeyPath || process.env.CCFULLNODE_PRIVATE_KEY_PATH // Mandatory in case CCFULLNODE_USE_SSL or CCFULLNODE_USE_BOTH is true
-  properties.server.certificatePath = properties.server.certificatePath || process.env.CCFULLNODE_CERTIFICATE_PATH // Mandatory in case CCFULLNODE_USE_SSL or CCFULLNODE_USE_BOTH is true
+  properties.server.usessl = (properties.server.usessl || process.env.C3NODESERV_USE_SSL === 'true') // Optional
+  properties.server.useBoth = (properties.server.useBoth || process.env.C3NODESERV_USE_BOTH === 'true') // both HTTP and HTTPS - Optional
+  properties.server.privateKeyPath = properties.server.privateKeyPath || process.env.C3NODESERV_PRIVATE_KEY_PATH // Mandatory in case C3NODESERV_USE_SSL or C3NODESERV_USE_BOTH is true
+  properties.server.certificatePath = properties.server.certificatePath || process.env.C3NODESERV_CERTIFICATE_PATH // Mandatory in case C3NODESERV_USE_SSL or C3NODESERV_USE_BOTH is true
 
-  properties.server.useBasicAuth = properties.server.useBasicAuth || (process.env.CCFULLNODE_USE_BASIC_AUTH === 'true') // Optional
-  properties.server.userName = properties.server.userName || process.env.CCFULLNODE_USER // Manadatory in case CCFULLNODE_USE_BASIC_AUTH is true
-  properties.server.password = properties.server.password || process.env.CCFULLNODE_PASS // Manadatory in case CCFULLNODE_USE_BASIC_AUTH is true
+  properties.server.useBasicAuth = properties.server.useBasicAuth || (process.env.C3NODESERV_USE_BASIC_AUTH === 'true') // Optional
+  properties.server.userName = properties.server.userName || process.env.C3NODESERV_USER // Manadatory in case C3NODESERV_USE_BASIC_AUTH is true
+  properties.server.password = properties.server.password || process.env.C3NODESERV_PASS // Manadatory in case C3NODESERV_USE_BASIC_AUTH is true
 
   return properties
 }

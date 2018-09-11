@@ -39,7 +39,7 @@ module.exports = function (args) {
   var redisOptions = {
     host: args.redisHost || 'localhost',
     port: args.redisPort || '6379',
-    prefix: 'ccfullnode:' + network + ':'
+    prefix: 'c3nodeserv:' + network + ':'
   }
   var redis = redisClient.createClient(redisOptions)
 
