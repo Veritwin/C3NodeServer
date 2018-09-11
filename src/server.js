@@ -87,13 +87,27 @@ app.use(function (req, res, next) {
 
 if (config.parser.start) {
   console.log('Starting parser...');
-  parser.parse(function (info) {
-    const redInfo = info.hasOwnProperty('blocks') && info.hasOwnProperty('ccheight') ? {
-      blocks: info.blocks,
-      ccheight: info.ccheight
-    } : info;
 
-    console.log('info', redInfo)
+  const lastInfo = {};
+
+  parser.parse(function (info) {
+    let readInfo;
+
+    if (info.hasOwnProperty('blocks') && info.hasOwnProperty('ccheight')) {
+      if (info.blocks !== lastInfo.blocks || info.ccheight !== lastInfo.ccheight) {
+        readInfo = {
+          blocks: lastInfo.blocks = info.blocks,
+          ccheight: lastInfo.ccheight = info.ccheight
+        };
+      }
+    }
+    else {
+      readInfo = info;
+    }
+
+    if (readInfo) {
+      console.log('info', readInfo)
+    }
   })
 }
 
