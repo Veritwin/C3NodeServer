@@ -5,6 +5,7 @@ var async = require('async')
 var CCTransaction = require('catenis-colored-coins/cc-transaction')
 var getAssetsOutputs = require('catenis-colored-coins/cc-get-assets-outputs')
 var bitcoinjs = require('bitcoinjs-lib')
+var bitcoinjsClassify = require('bitcoinjs-lib/src/classify')
 var bufferReverse = require('buffer-reverse')
 var _ = require('lodash')
 var toposort = require('toposort')
@@ -35,7 +36,7 @@ module.exports = function (args) {
 
   args = args || {}
   var network = args.network || 'testnet'
-  var bitcoinNetwork = (network === 'mainnet') ? bitcoinjs.networks.bitcoin : bitcoinjs.networks.testnet
+  var bitcoinNetwork = (network === 'mainnet') ? bitcoinjs.networks.bitcoin : (network === 'regtest' ? bitcoinjs.networks.regtest : bitcoinjs.networks.testnet)
   var redisOptions = {
     host: args.redisHost || 'localhost',
     port: args.redisPort || '6379',
@@ -572,7 +573,7 @@ module.exports = function (args) {
     var r = {}
     r['txid'] = tx.getId()
     r['version'] = tx.version
-    r['locktime'] = tx.lock_time
+    r['locktime'] = tx.locktime
     r['hex'] = tx.toHex()
     r['vin'] = []
     r['vout'] = []
@@ -586,7 +587,12 @@ module.exports = function (args) {
           r['vin'].push({'txid': txid, 'vout': n, 'coinbase' : hex, 'sequence' : seq})
         } else {
           var asm = bitcoinjs.script.toASM(txin.script)
-          r['vin'].push({'txid': txid, 'vout': n, 'scriptSig' : {'asm': asm, 'hex': hex}, 'sequence':seq})
+          var input = {'txid': txid, 'vout': n, 'scriptSig' : {'asm': asm, 'hex': hex}}
+          if (txin.witness.length > 0) {
+            input.txinwitness = txin.witness
+          }
+          input.sequence = seq
+          r['vin'].push(input)
         }
     })
 
@@ -594,10 +600,10 @@ module.exports = function (args) {
         var value = txout.value
         var hex = txout.script.toString('hex')
         var asm = bitcoinjs.script.toASM(txout.script)
-        var type = bitcoinjs.script.classifyOutput(txout.script)
+        var type = bitcoinjsClassify.output(txout.script)
         var addresses = []
-        if (~['pubkeyhash', 'scripthash'].indexOf(type)) {
-          addresses.push(bitcoinjs.address.fromOutputScript(bitcoinjs.script.decompile(txout.script), bitcoinNetwork))
+        if (~['witnesspubkeyhash', 'witnessscripthash', 'pubkeyhash', 'scripthash'].indexOf(type)) {
+          addresses.push(bitcoinjs.address.fromOutputScript(txout.script, bitcoinNetwork))
         }
         var answer = {'value' : value, 'n': i, 'scriptPubKey': {'asm': asm, 'hex': hex, 'addresses': addresses, 'type': type}}
 

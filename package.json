@@ -22,7 +22,7 @@
     "basic-auth": "^1.1.0",
     "bignumber.js": "^6.0.0",
     "bitcoin-async": "^1.0.0",
-    "bitcoinjs-lib": "~3.0.2",
+    "bitcoinjs-lib": "^5.1.7",
     "body-parser": "^1.17.1",
     "buffer-reverse": "^1.0.1",
     "catenis-colored-coins": "git@bitbucket.org:blockchainofthings/cateniscoloredcoins.git#semver:^0.2.0",
