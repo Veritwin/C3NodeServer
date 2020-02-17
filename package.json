@@ -1,6 +1,6 @@
 {
   "name": "c3-node-server",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Catenis Colored Coins (C3) node server",
   "main": "src/server.js",
   "scripts": {
