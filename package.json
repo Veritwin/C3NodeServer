@@ -25,7 +25,7 @@
     "bitcoinjs-lib": "^5.1.7",
     "body-parser": "^1.17.1",
     "buffer-reverse": "^1.0.1",
-    "catenis-colored-coins": "git@bitbucket.org:blockchainofthings/cateniscoloredcoins.git#semver:^0.2.0",
+    "catenis-colored-coins": "git@bitbucket.org:blockchainofthings/cateniscoloredcoins.git#semver:^0.3.0",
     "cors": "^2.8.3",
     "express": "^4.15.2",
     "iniparser": "^1.0.5",
