@@ -589,7 +589,7 @@ module.exports = function (args) {
           var asm = bitcoinjs.script.toASM(txin.script)
           var input = {'txid': txid, 'vout': n, 'scriptSig' : {'asm': asm, 'hex': hex}}
           if (txin.witness.length > 0) {
-            input.txinwitness = txin.witness
+            input.txinwitness = txin.witness.map(item => item.toString('hex'))
           }
           input.sequence = seq
           r['vin'].push(input)
