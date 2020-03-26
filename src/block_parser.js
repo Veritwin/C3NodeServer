@@ -231,7 +231,7 @@ module.exports = function (args) {
       })
     }, function (err) {
       if (err) return cb(err)
-      var outputsAssets = getAssetsOutputs(transaction)
+      var outputsAssets = getAssetsOutputs(transaction, network)
       outputsAssets.forEach(function (assets, outputIndex) {
         if (assets && assets.length) {
           utxosChanges.unused[transaction.txid + ':' + outputIndex] = JSON.stringify(assets)
