@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.7] - 2020-03-27
+
+### Changes
+- Updated dependency module `catenis-colored-coins` to its latest version (0.3.1).
+- Pass bitcoin network when `calling cc-get-assets-outputs` method of `catenis-colored-coins module`.
+- Changed definition of field `txinwitness` of transaction inputs from a list of Buffer objects to a list of hex-encoded
+ string data
+
 ## [0.1.6] - 2020-02-17
 
 ### Changes
