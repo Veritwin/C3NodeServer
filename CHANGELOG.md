@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.8] - 2020-04-18
+
+### Fixes
+- Avoid crash when parsing a transaction with an invalid Pubkey Script.
+
 ## [0.1.7] - 2020-03-27
 
 ### Changes
