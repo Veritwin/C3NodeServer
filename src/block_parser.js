@@ -599,8 +599,14 @@ module.exports = function (args) {
     tx.outs.forEach(function (txout, i) {
         var value = txout.value
         var hex = txout.script.toString('hex')
-        var asm = bitcoinjs.script.toASM(txout.script)
-        var type = bitcoinjsClassify.output(txout.script)
+        try {
+          var asm = bitcoinjs.script.toASM(txout.script)
+          var type = bitcoinjsClassify.output(txout.script)
+        } catch (e) {
+          // Invalid script
+          asm = '[error]';
+          type = bitcoinjsClassify.types.NONSTANDARD;
+        }
         var addresses = []
         if (~['witnesspubkeyhash', 'witnessscripthash', 'pubkeyhash', 'scripthash'].indexOf(type)) {
           addresses.push(bitcoinjs.address.fromOutputScript(txout.script, bitcoinNetwork))
