@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.9] - 2020-08-20
+
+### Fixes
+- Update catenis-colored-coins dependency module to fix bug while parsing transaction with pay to witness script hash
+ (P2WSH) input.
+
 ## [0.1.8] - 2020-04-18
 
 ### Fixes
