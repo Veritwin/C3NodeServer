@@ -88,8 +88,7 @@ module.exports = function (args) {
   var getNextBlockHeight = function (cb) {
     redis.hget('blocks', 'lastBlockHeight', function (err, lastBlockHeight) {
       if (err) return cb(err)
-      lastBlockHeight = lastBlockHeight || ((network === 'mainnet' ? mainnetFirstColoredBlock : (network === 'regtest' ? regtestFirstColoredBlock : testnetFirstColoredBlock)) - 1)
-      lastBlockHeight = parseInt(lastBlockHeight)
+      lastBlockHeight = parseInt(lastBlockHeight || ((network === 'mainnet' ? mainnetFirstColoredBlock : (network === 'regtest' ? regtestFirstColoredBlock : testnetFirstColoredBlock)) - 1))
       cb(null, lastBlockHeight + 1)
     })
   }
