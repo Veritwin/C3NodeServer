@@ -755,7 +755,7 @@ module.exports = function (args) {
     redis.hmget('blocks', 'lastBlockHeight', 'lastTimestamp', function (err, arr) {
       if (err) return cb(err)
       if (!arr || arr.length < 2) return process.nextTick(cb)
-      info.ccheight = arr[0]
+      info.ccheight = parseInt(arr[0])
       info.cctimestamp = arr[1]
       cb()
     })
