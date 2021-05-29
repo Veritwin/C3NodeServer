@@ -11,6 +11,9 @@ var ospath = require('ospath')
 var socketio = require('socket.io')
 var cors = require('cors')
 
+// Patch bitcoin-async module
+require('../utils/fixBitcoinAsync')
+
 var propertiesFilePath = path.join(ospath.data(), 'coloredcoins-full-node', 'properties.conf')
 
 // Look for argument specifying a configuration file

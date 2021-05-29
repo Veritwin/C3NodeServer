@@ -6,6 +6,7 @@
 - Improvement to deployment process.
 
 ### Fixes
+- Patch `bitcoin-async` module to correctly process errors returned from batch RPC call to Bitcoin Core.
 - Upgrade dependency modules to mitigate security vulnerabilities.
 
 ## [0.1.9] - 2020-08-20
