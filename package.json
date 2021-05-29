@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node ./src/server.js",
     "start_server": "node ./src/server.js --config=server_props.conf",
-    "start_parser": "node ./src/server.js --config=parser_props.conf"
+    "start_parser": "node ./src/server.js --config=parser_props.conf",
+    "predeploy": "npm pack && mv *.tgz dist/"
   },
   "keywords": [
     "Catenis",
