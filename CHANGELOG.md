@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.10] - 2021-05-29
+
+### Changes
+- Improvement to deployment process.
+
+### Fixes
+- Upgrade dependency modules to mitigate security vulnerabilities.
+
 ## [0.1.9] - 2020-08-20
 
 ### Fixes
