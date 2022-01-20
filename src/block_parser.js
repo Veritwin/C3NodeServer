@@ -364,7 +364,7 @@ module.exports = function (args) {
   function setAssetAddresses(assetIdAddresses, cb) {
     async.each(Object.keys(assetIdAddresses), function (assetId, cb) {
       redis.hget('asset-addresses', assetId, function (err, addresses) {
-        if (err) cb(err);
+        if (err) return cb(err);
 
         if (addresses) {
           var currentAddresses = JSON.parse(addresses);
@@ -387,7 +387,7 @@ module.exports = function (args) {
   function setAssetIssuance(assetIdIssuanceInfo, cb) {
     async.each(Object.keys(assetIdIssuanceInfo), function (assetId, cb) {
       redis.hget('asset-issuance', assetId, function (err, issuance) {
-        if (err) cb(err);
+        if (err) return cb(err);
 
         var currentIssuance = issuance ? JSON.parse(issuance) : {};
 
@@ -403,7 +403,7 @@ module.exports = function (args) {
   function setTransactionUtxos(txidTxouts, cb) {
     async.each(Object.keys(txidTxouts), function (txid, cb) {
       redis.hget('transaction-utxos', txid, function (err, utxos) {
-        if (err) cb(err);
+        if (err) return cb(err);
 
         if (utxos) {
           var currentUtxos = JSON.parse(utxos);
@@ -426,7 +426,7 @@ module.exports = function (args) {
   function setAddressUtxos(addressTxouts, cb) {
     async.each(Object.keys(addressTxouts), function (address, cb) {
       redis.hget('address-utxos', address, function (err, utxos) {
-        if (err) cb(err);
+        if (err) return cb(err);
 
         if (utxos) {
           var currentUtxos = JSON.parse(utxos);
@@ -1221,7 +1221,7 @@ module.exports = function (args) {
     function getAssetHolders_innerProcess() {
       // Get addresses associated with asset
       redis.hget('asset-addresses', assetId, function (err, strAddresses) {
-        if (err) cb(err);
+        if (err) return cb(err);
 
         if (strAddresses) {
           const addresses = JSON.parse(strAddresses);
@@ -1307,7 +1307,7 @@ module.exports = function (args) {
     function getAssetBalance_innerProcess() {
       // Get addresses associated with asset
       redis.hget('asset-addresses', assetId, function (err, strAddresses) {
-        if (err) cb(err);
+        if (err) return cb(err);
 
         if (strAddresses) {
           let addresses = JSON.parse(strAddresses);
@@ -1399,7 +1399,7 @@ module.exports = function (args) {
         async.each(assetIds, function (assetId, cb) {
           // Get addresses associated with asset
           redis.hget('asset-addresses', assetId, function (err, strAddresses) {
-            if (err) cb(err);
+            if (err) return cb(err);
 
             if (strAddresses) {
               let addresses = JSON.parse(strAddresses);
@@ -1502,7 +1502,7 @@ module.exports = function (args) {
     function getAssetIssuance_innerProcess() {
       // Get transactions used to issue asset
       redis.hget('asset-issuance', assetId, function (err, strIssuance) {
-        if (err) cb(err);
+        if (err) return cb(err);
 
         const issuance = JSON.parse(strIssuance);
 
@@ -1521,7 +1521,7 @@ module.exports = function (args) {
 
             // Compute issued asset amount
             redis.hget('transaction-utxos', txid, function (err, strUtxos) {
-              if (err) cb(err);
+              if (err) return cb(err);
 
               const utxos = JSON.parse(strUtxos);
 
@@ -1541,7 +1541,7 @@ module.exports = function (args) {
                   cb(null);
                 });
               }, function (err) {
-                if (err) cb(err);
+                if (err) return cb(err);
 
                 // Convert accumulated asset amount to number and save issuance info
                 //  for this transaction
@@ -1582,7 +1582,7 @@ module.exports = function (args) {
     function getAssetIssuingAddress_innerProcess() {
       // Get transactions used to issue asset
       redis.hget('asset-issuance', assetId, function (err, strIssuance) {
-        if (err) cb(err);
+        if (err) return cb(err);
 
         const issuance = JSON.parse(strIssuance);
 
@@ -1592,11 +1592,11 @@ module.exports = function (args) {
 
           // Retrieve transaction info
           bitcoin.cmd('getrawtransaction', [issuingTxid, true], function (err, issuingTx) {
-            if (err) cb(err);
+            if (err) return cb(err);
 
             // Retrieve tx output associated with first input of transaction
             bitcoin.cmd('getrawtransaction', [issuingTx.vin[0].txid, true], function (err, tx) {
-              if (err) cb(err);
+              if (err) return cb(err);
 
               // Return address associated with tx output
               cb(null, {
