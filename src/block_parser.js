@@ -1600,7 +1600,7 @@ module.exports = function (args) {
 
               // Return address associated with tx output
               cb(null, {
-                address: tx.vout[issuingTx.vin[0].vout].scriptPubKey.addresses[0]
+                address: tx.vout[issuingTx.vin[0].vout].scriptPubKey.address
               });
             })
           })
