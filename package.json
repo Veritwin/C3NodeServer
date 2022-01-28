@@ -38,11 +38,11 @@
     "ospath": "^1.2.2",
     "path-extra": "^4.3.0",
     "redis": "^3.1.2",
-    "socket.io": "^4.1.2",
+    "socket.io": "^4.4.1",
     "toposort": "^2.0.2"
   },
   "repository": "git@bitbucket.org:blockchainofthings/c3nodeserver.git",
   "devDependencies": {
-    "mocha": "^9.1.3"
+    "mocha": "^9.2.0"
   }
 }
