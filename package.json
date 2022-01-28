@@ -7,7 +7,8 @@
     "start": "node ./src/server.js",
     "start_server": "node ./src/server.js --config=server_props.conf",
     "start_parser": "node ./src/server.js --config=parser_props.conf",
-    "predeploy": "npm pack && mv *.tgz dist/"
+    "predeploy": "npm pack && mv *.tgz dist/",
+    "test": "mocha"
   },
   "keywords": [
     "Catenis",
@@ -26,10 +27,12 @@
     "bitcoinjs-lib": "^5.2.0",
     "body-parser": "^1.19.0",
     "buffer-reverse": "^1.0.1",
-    "catenis-colored-coins": "git@bitbucket.org:blockchainofthings/cateniscoloredcoins.git#semver:^0.3.3",
+    "catenis-colored-coins": "git@bitbucket.org:blockchainofthings/cateniscoloredcoins.git#semver:^0.3.4",
     "cors": "^2.8.5",
     "express": "^4.17.1",
     "iniparser": "^1.0.5",
+    "ipfs-http-client": "^54.0.2",
+    "it-to-buffer": "^2.0.2",
     "lodash": "^4.17.21",
     "morgan": "^1.10.0",
     "ospath": "^1.2.2",
@@ -38,5 +41,8 @@
     "socket.io": "^4.1.2",
     "toposort": "^2.0.2"
   },
-  "repository": "git@bitbucket.org:blockchainofthings/c3nodeserver.git"
+  "repository": "git@bitbucket.org:blockchainofthings/c3nodeserver.git",
+  "devDependencies": {
+    "mocha": "^9.1.3"
+  }
 }

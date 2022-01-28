@@ -124,6 +124,64 @@ var routes = [
       'numOfConfirmations',
       'waitForParsing'
     ]
+  },
+  {
+    path: '/getAssetMetadata',
+    method: 'post',
+    functionName: 'getAssetMetadata',
+    params: ['assetId'],
+    optionalParams: [
+      'waitForParsing'
+    ]
+  },
+  {
+    path: '/getNFTokenMetadata',
+    method: 'post',
+    functionName: 'getNFTokenMetadata',
+    params: ['tokenId'],
+    optionalParams: [
+      'waitForParsing'
+    ]
+  },
+  {
+    path: '/getNFTokenAsset',
+    method: 'post',
+    functionName: 'getNFTokenAsset',
+    params: ['tokenId'],
+    optionalParams: [
+      'waitForParsing'
+    ]
+  },
+  {
+    path: '/getNFTokenOwner',
+    method: 'post',
+    functionName: 'getNFTokenOwner',
+    params: ['tokenId'],
+    optionalParams: [
+      'numOfConfirmations',
+      'waitForParsing'
+    ]
+  },
+  {
+    path: '/getAllNFTokensOwner',
+    method: 'post',
+    functionName: 'getAllNFTokensOwner',
+    params: ['assetId'],
+    optionalParams: [
+      'numOfConfirmations',
+      'waitForParsing'
+    ]
+  },
+  {
+    path: '/getOwnedNFTokens',
+    method: 'post',
+    functionName: 'getOwnedNFTokens',
+    params: ['addresses'],
+    optionalParams: [
+      'assetId',
+      'numOfConfirmations',
+      'waitForParsing'
+    ]
   }
 ]
 

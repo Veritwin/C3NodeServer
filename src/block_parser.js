@@ -5,12 +5,16 @@ var async = require('async')
 var CCTransaction = require('catenis-colored-coins/cc-transaction')
 var getAssetsOutputs = require('catenis-colored-coins/cc-get-assets-outputs')
 var bitcoinjs = require('bitcoinjs-lib')
-var bitcoinjsClassify = require('bitcoinjs-lib/src/classify')
 var bufferReverse = require('buffer-reverse')
 var _ = require('lodash')
 var toposort = require('toposort')
 var redisClient = require('redis')
 var bitcoinRpc = require('bitcoin-async')
+const ClassifyTxOut = require('./ClassifyTxOut');
+const ipfsHttpClient = require('ipfs-http-client').create;
+const { CID } = require('ipfs-http-client');
+const toBuffer = require('it-to-buffer');
+const assetIdEncoder = require('catenis-colored-coins/cc-assetid-encoder');
 var events = require('events')
 var path = require('path-extra')
 var BigNumber = require('bignumber.js');
@@ -53,6 +57,13 @@ module.exports = function (args) {
     timeout: args.bitcoinTimeout || 30000
   }
   var bitcoin = new bitcoinRpc.Client(bitcoinOptions)
+
+  const ipfsClientOptions = {
+    host: args.ipfsHost || 'localhost',
+    port: args.ipfsPort || 9095,
+    protocol: args.ipfsProtocol || 'http'
+  };
+  const ipfs = ipfsHttpClient(ipfsClientOptions);
 
   var emitter = new events.EventEmitter()
 
@@ -111,15 +122,25 @@ module.exports = function (args) {
         var transactions = [];
         block.mapTransaction = {};
 
-        block.transactions.forEach(function (transaction) {
-          var decTransact = decodeRawTransaction(transaction);
-          transactions.push(decTransact);
-          block.mapTransaction[decTransact.txid] = decTransact;
+        async.eachSeries(block.transactions, (transaction, cb2) => {
+          // Call 'decodeRawTransaction' asynchronously (with a callback) to include colored coins data
+          decodeRawTransaction(transaction, (err, decTransact) => {
+            if (err) {
+              return cb2(err);
+            }
+
+            transactions.push(decTransact);
+            block.mapTransaction[decTransact.txid] = decTransact;
+            cb2();
+          });
+        }, err => {
+          if (err) {
+            return cb(err);
+          }
+
+          block.transactions = transactions;
+          cb(null, block);
         });
-
-        block.transactions = transactions;
-
-        cb(null, block)
       })
     })
   }
@@ -160,10 +181,10 @@ module.exports = function (args) {
     return (hexProtocol === protocolToHex(ccProtocol) || hexProtocol === protocolToHex(c3Protocol));
   };
 
-  var getColoredData = function (transaction) {
+  var getColoredData = function (transaction, cb) {
     var coloredData = null
     transaction.vout.some(function (vout) {
-      if (!vout.scriptPubKey || !vout.scriptPubKey.type === 'nulldata') return null
+      if (!vout.scriptPubKey || !vout.scriptPubKey.type === 'nulldata') return null;
       var hex = vout.scriptPubKey.asm.substring('OP_RETURN '.length)
       if (checkProtocol(hex)) {
         try {
@@ -174,7 +195,87 @@ module.exports = function (args) {
       }
       return coloredData
     })
-    return coloredData
+
+    if (coloredData && coloredData.protocol === c3Protocol && (coloredData.cid || coloredData.multiSig.length > 0)) {
+      try {
+        const cid = assembleCid(coloredData, transaction);
+
+        // Retrieve metadata from IPFS
+        toBuffer(ipfs.cat(CID.decode(cid)))
+        .then(metadata => {
+          metadata = Buffer.from(metadata);
+          // Add metadata to colored coins data
+          try {
+            coloredData.metadata = JSON.parse(metadata.toString());
+          }
+          catch (err) {
+            return cb(new Error('Metadata is not a valid JSON'));
+          }
+
+          cb(null, coloredData);
+        })
+        .catch(err => {
+          cb(err);
+        });
+      }
+      catch (err) {
+        process.nextTick(cb, err);
+      }
+    }
+    else {
+      process.nextTick(cb, null, coloredData);
+    }
+  }
+
+  /**
+   * Extract the IPFS CID of the metadata from the colored coins data encoded in a transaction
+   * @param {Object} ccData The colored coins data
+   * @param {Object} transaction The bitcoin transaction that contains the colored coins data
+   * @return {Buffer} The extracted IPFS CID
+   */
+  function assembleCid(ccData, transaction) {
+    let cid = ccData.cid ? Buffer.from(ccData.cid, 'hex') : Buffer.alloc(0);
+
+    if (ccData.multiSig.length > 0) {
+      // Find multisig output
+      const msOutput = transaction.vout.find(out => out.scriptPubKey && out.scriptPubKey.type === 'multisig');
+
+      if (!msOutput) {
+        throw new Error('Transaction missing multisig output to recover CID');
+      }
+
+      // Parse multisig output and get public keys
+      const publicKeys = bitcoinjs.payments.p2ms({
+        output: Buffer.from(msOutput.scriptPubKey.hex, 'hex'),
+        network: bitcoinNetwork
+      }, {validate: false}).pubkeys;
+
+      // Get remainder of CID from multisig outputs
+      let cidLeftLength;
+
+      ccData.multiSig.forEach((multiSigInfo, idx) => {
+        const publicKey = publicKeys[multiSigInfo.index];
+
+        if (!publicKey) {
+          throw new Error('Not enough keys in multisig output to recover CID');
+        }
+
+        let keyData = publicKey.slice(1);
+
+        if (idx === 0) {
+          // Get length of part of CID stored in multisig output
+          cidLeftLength = keyData[keyData.length - 1];
+          keyData = keyData.slice(0, keyData.length - 1);
+        }
+
+        const cidPart = keyData.slice(-cidLeftLength);
+        cidLeftLength -= cidPart.length;
+
+        cid = Buffer.concat([cid, cidPart], cid.length + cidPart.length);
+      });
+    }
+
+    return cid;
   }
 
   var getPreviousOutputs = function(transaction, cb) {
@@ -236,10 +337,106 @@ module.exports = function (args) {
           utxosChanges.unused[transaction.txid + ':' + outputIndex] = JSON.stringify(assets)
         }
       })
+
+      const metadata = getCCMetadata(transaction);
+
+      if (metadata) {
+        // Save asset/non-fungible tokens metadata
+        if (!utxosChanges.metadata) {
+          utxosChanges.metadata = metadata;
+        }
+        else {
+          if (metadata.asset) {
+            if (!utxosChanges.metadata.asset) {
+              utxosChanges.metadata.asset = metadata.asset;
+            }
+            else {
+              Object.keys(metadata.asset).forEach(assetId => {
+                utxosChanges.metadata.asset[assetId] = metadata.asset[assetId];
+              });
+            }
+          }
+
+          if (metadata.nonFungibleToken) {
+            if (!utxosChanges.metadata.nonFungibleToken) {
+              utxosChanges.metadata.nonFungibleToken = metadata.nonFungibleToken;
+            }
+            else {
+              Object.keys(metadata.nonFungibleToken).forEach(tokenId => {
+                utxosChanges.metadata.nonFungibleToken[tokenId] = metadata.nonFungibleToken[tokenId];
+              });
+            }
+          }
+        }
+      }
+
       emitter.emit('newcctransaction', transaction)
       emitter.emit('newtransaction', transaction)
       cb()
     })
+  }
+
+  /**
+   * Colored Coins metadata structure
+   * @typedef {Object} CCMetadata
+   * @property {Object.<string, Object>} [asset] Dictionary of metadata by asset IDs
+   * @property {Object.<string, Object>} [nonFungibleToken] Dictionary of metadata by non-fungible token IDs
+   */
+
+  /**
+   * Retrieve the asset and/or non-fungible token metadata contained in a colored coins transaction
+   * @param {Object} transaction The colored coins transaction (containing the already decoded colored coins data)
+   * @return {(CCMetadata|undefined)} The retrieved metadata or undefined if no metadata found
+   */
+  function getCCMetadata(transaction) {
+    let ccData;
+    let metadata;
+
+    if (transaction.ccdata && (ccData = transaction.ccdata[0]) && (ccData.type === 'issuance'
+          || ccData.type === 'transfer') && (metadata = ccData.metadata)) {
+      const ccMetadata = {};
+
+      if (ccData.type === 'issuance' && metadata.metadata) {
+        // Asset metadata. Get asset ID
+        const assetId = assetIdEncoder(transaction, bitcoinNetwork);
+        ccMetadata.asset = {};
+        ccMetadata.asset[assetId] = metadata.metadata;
+      }
+
+      if (ccData.protocol === c3Protocol && metadata.nfTokenMetadata) {
+        // Non-fungible token metadata
+        const nfTokenMetadata = metadata.nfTokenMetadata;
+        const nfTokenCCMetadata = {};
+
+        if (ccData.type === 'issuance' && ccData.aggregationPolicy === 'nonFungible'
+              && Array.isArray(nfTokenMetadata.newTokens)) {
+          // Metadata for new non-fungible tokens. Get token IDs
+          const tokenIds = assetIdEncoder(transaction, bitcoinNetwork, true);
+
+          nfTokenMetadata.newTokens.forEach((tokenMetadata, idx) => {
+            const tokenId = tokenIds[idx];
+
+            if (tokenId) {
+              nfTokenCCMetadata[tokenId] = tokenMetadata;
+            }
+          });
+        }
+
+        if (typeof nfTokenMetadata.update === 'object' && nfTokenMetadata.update !== null) {
+          Object.keys(nfTokenMetadata.update).forEach(tokenId => {
+            nfTokenCCMetadata[tokenId] = nfTokenMetadata.update[tokenId];
+          });
+        }
+
+        if (Object.keys(nfTokenCCMetadata).length > 0) {
+          ccMetadata.nonFungibleToken = nfTokenCCMetadata;
+        }
+      }
+
+      if (Object.keys(ccMetadata).length > 0) {
+        return ccMetadata;
+      }
+    }
   }
 
   var setTxos = function (utxos, cb) {
@@ -247,6 +444,28 @@ module.exports = function (args) {
       var assets = utxos[utxo]
       redis.hmset('utxos', utxo, assets, cb)
     }, cb)
+  }
+
+  /**
+   * Record metadata associated with assets to local Redis database
+   * @param {Object.<string, Object>} metadata A dictionary of metadata by asset IDs
+   * @param {Function} cb A callback function
+   */
+  function setAssetMetadata(metadata, cb) {
+    async.each(Object.keys(metadata), (id, cb) => {
+      redis.hset('asset-metadata', id, JSON.stringify(metadata[id]), cb);
+    }, cb);
+  }
+
+  /**
+   * Record metadata associated with non-fungible tokens to local Redis database
+   * @param {Object.<string, Object>} metadata A dictionary of metadata by non-fungible token IDs
+   * @param {Function} cb A callback function
+   */
+  function setNFTokenMetadata(metadata, cb) {
+    async.each(Object.keys(metadata), (id, cb) => {
+      redis.hset('nftoken-metadata', id, JSON.stringify(metadata[id]), cb);
+    }, cb);
   }
 
   var updateLastBlock = function (blockHeight, blockHash, timestamp, cb) {
@@ -261,8 +480,9 @@ module.exports = function (args) {
   var updateUtxosChanges = function (block, utxosChanges, cb) {
     async.waterfall([
       function (cb) {
-        var txoutAddresses = {};
         var assetIdAddresses = {};
+        const tokenIdAddresses = {};
+        const tokenIdAssetId = {};
         var assetIdIssuanceInfo = {};
         var txidTxouts = {};
         var addressTxouts = {};
@@ -276,23 +496,36 @@ module.exports = function (args) {
           var txid = parts[0];
           var addresses = block.mapTransaction[txid].vout[parts[1]].scriptPubKey.addresses;
 
-          txoutAddresses[txout] = addresses;
-
           // Get assets information
           var assetInfos = JSON.parse(utxosChanges.unused[txout]);
           var assetIdAssetInfo = {};
 
           assetInfos.forEach(function (assetInfo) {
             assetIdAssetInfo[assetInfo.assetId] = assetInfo;
+
+            if (assetInfo.tokenId) {
+              // Record asset ID of non-fungible token
+              if (!(assetInfo.tokenId in tokenIdAssetId)) {
+                tokenIdAssetId[assetInfo.tokenId] = assetInfo.assetId;
+              }
+
+              // Identify addresses associated with non-fungible tokens
+              if (!(assetInfo.tokenId in tokenIdAddresses)) {
+                tokenIdAddresses[assetInfo.tokenId] = addresses;
+              }
+              else {
+                tokenIdAddresses[assetInfo.tokenId] = mergeArrays(tokenIdAddresses[assetInfo.tokenId], addresses);
+              }
+            }
           });
 
           Object.keys(assetIdAssetInfo).forEach(function (assetId) {
             // Identify addresses associated with assets
             if (!(assetId in assetIdAddresses)) {
-              assetIdAddresses[assetId] = txoutAddresses[txout];
+              assetIdAddresses[assetId] = addresses;
             }
             else {
-              assetIdAddresses[assetId] = mergeArrays(assetIdAddresses[assetId], txoutAddresses[txout]);
+              assetIdAddresses[assetId] = mergeArrays(assetIdAddresses[assetId], addresses);
             }
 
             // Identify issuing transactions associated with assets
@@ -335,6 +568,22 @@ module.exports = function (args) {
               setAssetAddresses(assetIdAddresses, cb);
             },
             function (cb) {
+              if (Object.keys(tokenIdAddresses).length === 0) {
+                return process.nextTick(cb);
+              }
+
+              // Populate nftoken-addresses hash of local Redis database
+              setNFTokenAddresses(tokenIdAddresses, cb);
+            },
+            function (cb) {
+              if (Object.keys(tokenIdAssetId).length === 0) {
+                return process.nextTick(cb);
+              }
+
+              // Populate nftoken-asset hash of local Redis database
+              setNFTokenAsset(tokenIdAssetId, cb);
+            },
+            function (cb) {
               // Populate asset-issuance hash of local Redis database
               setAssetIssuance(assetIdIssuanceInfo, cb);
             },
@@ -354,6 +603,30 @@ module.exports = function (args) {
       },
       function (cb) {
         setTxos(utxosChanges.unused, cb)
+      },
+      function (cb) {
+        if (!utxosChanges.metadata) {
+          return process.nextTick(cb);
+        }
+
+        async.waterfall([
+          function (cb) {
+            if (!utxosChanges.metadata.asset) {
+              return process.nextTick(cb);
+            }
+
+            // Populate asset-metadata hash of local Redis database
+            setAssetMetadata(utxosChanges.metadata.asset, cb);
+          },
+          function (cb) {
+            if (!utxosChanges.metadata.nonFungibleToken) {
+              return process.nextTick(cb);
+            }
+
+            // Populate nftoken-metadata hash of local Redis database
+            setNFTokenMetadata(utxosChanges.metadata.nonFungibleToken, cb);
+          }
+        ], cb);
       },
       function (cb) {
         updateLastBlock(block.height, block.hash, block.timestamp, cb)
@@ -384,6 +657,45 @@ module.exports = function (args) {
     }, cb);
   }
 
+  /**
+   * Record bitcoin addresses associated with non-fungible tokens onto local Redis database
+   * @param {Object.<string, string[]>} tokenIdAddresses A dictionary of bitcoin addresses by non-fungible token ID
+   * @param {Function} cb A callback function
+   */
+  function setNFTokenAddresses(tokenIdAddresses, cb) {
+    async.each(Object.keys(tokenIdAddresses), function (tokenId, cb) {
+      redis.hget('nftoken-addresses', tokenId, function (err, addresses) {
+        if (err) return cb(err);
+
+        if (addresses) {
+          const currentAddresses = JSON.parse(addresses);
+          const updatedAddresses = mergeArrays(currentAddresses, tokenIdAddresses[tokenId]);
+
+          if (updatedAddresses.length > currentAddresses.length) {
+            redis.hset('nftoken-addresses', tokenId, JSON.stringify(updatedAddresses), cb);
+          }
+          else {
+            cb(null);
+          }
+        }
+        else {
+          redis.hset('nftoken-addresses', tokenId, JSON.stringify(tokenIdAddresses[tokenId]), cb);
+        }
+      });
+    }, cb);
+  }
+
+  /**
+   * Record non-fungible asset (asset ID) to which non-fungible tokens (token ID) pertain
+   * @param {Object.<string, string>} tokenIdAssetId A dictionary of asset ID by non-fungible token ID
+   * @param {Function} cb A callback function
+   */
+  function setNFTokenAsset(tokenIdAssetId, cb) {
+    async.each(Object.keys(tokenIdAssetId), function (tokenId, cb) {
+      redis.hset('nftoken-asset', tokenId, tokenIdAssetId[tokenId], cb);
+    }, cb);
+  }
+
   function setAssetIssuance(assetIdIssuanceInfo, cb) {
     async.each(Object.keys(assetIdIssuanceInfo), function (assetId, cb) {
       redis.hget('asset-issuance', assetId, function (err, issuance) {
@@ -402,24 +714,8 @@ module.exports = function (args) {
 
   function setTransactionUtxos(txidTxouts, cb) {
     async.each(Object.keys(txidTxouts), function (txid, cb) {
-      redis.hget('transaction-utxos', txid, function (err, utxos) {
-        if (err) return cb(err);
-
-        if (utxos) {
-          var currentUtxos = JSON.parse(utxos);
-          var updatedUtxos = mergeArrays(currentUtxos, txidTxouts[txid]);
-
-          if (updatedUtxos.length > currentUtxos.length) {
-            redis.hset('transaction-utxos', txid, JSON.stringify(updatedUtxos), cb);
-          }
-          else {
-            cb(null);
-          }
-        }
-        else {
-          redis.hset('transaction-utxos', txid, JSON.stringify(txidTxouts[txid]), cb);
-        }
-      });
+      // Simply replace all UTXOs associated with bitcoin transaction
+      redis.hset('transaction-utxos', txid, JSON.stringify(txidTxouts[txid]), cb);
     }, cb);
   }
 
@@ -470,8 +766,9 @@ module.exports = function (args) {
   var updateMempoolTransactionUtxosChanges = function (transaction, utxosChanges, cb) {
     async.waterfall([
       function (cb) {
-        var txoutAddresses = {};
         var assetIdAddresses = {};
+        const tokenIdAddresses = {};
+        const tokenIdAssetId = {};
         var assetIdIssuanceInfo = {};
         var txidTxouts = {};
         var addressTxouts = {};
@@ -483,23 +780,36 @@ module.exports = function (args) {
           // Get addresses associated with transaction output
           var addresses = transaction.vout[txout.split(':')[1]].scriptPubKey.addresses;
 
-          txoutAddresses[txout] = addresses;
-
           // Get assets information
           var assetInfos = JSON.parse(utxosChanges.unused[txout]);
           var assetIdAssetInfo = {};
 
           assetInfos.forEach(function (assetInfo) {
             assetIdAssetInfo[assetInfo.assetId] = assetInfo;
+
+            if (assetInfo.tokenId) {
+              // Record asset ID of non-fungible token
+              if (!(assetInfo.tokenId in tokenIdAssetId)) {
+                tokenIdAssetId[assetInfo.tokenId] = assetInfo.assetId;
+              }
+
+              // Identify addresses associated with non-fungible tokens
+              if (!(assetInfo.tokenId in tokenIdAddresses)) {
+                tokenIdAddresses[assetInfo.tokenId] = addresses;
+              }
+              else {
+                tokenIdAddresses[assetInfo.tokenId] = mergeArrays(tokenIdAddresses[assetInfo.tokenId], addresses);
+              }
+            }
           });
 
           Object.keys(assetIdAssetInfo).forEach(function (assetId) {
             // Identify addresses associated with assets
             if (!(assetId in assetIdAddresses)) {
-              assetIdAddresses[assetId] = txoutAddresses[txout];
+              assetIdAddresses[assetId] = addresses;
             }
             else {
-              assetIdAddresses[assetId] = mergeArrays(assetIdAddresses[assetId], txoutAddresses[txout]);
+              assetIdAddresses[assetId] = mergeArrays(assetIdAddresses[assetId], addresses);
             }
 
             // Identify issuing transactions associated with assets
@@ -542,6 +852,22 @@ module.exports = function (args) {
               setAssetAddresses(assetIdAddresses, cb);
             },
             function (cb) {
+              if (Object.keys(tokenIdAddresses).length === 0) {
+                return process.nextTick(cb);
+              }
+
+              // Populate nftoken-addresses hash of local Redis database
+              setNFTokenAddresses(tokenIdAddresses, cb);
+            },
+            function (cb) {
+              if (Object.keys(tokenIdAssetId).length === 0) {
+                return process.nextTick(cb);
+              }
+
+              // Populate nftoken-asset hash of local Redis database
+              setNFTokenAsset(tokenIdAssetId, cb);
+            },
+            function (cb) {
               // Populate asset-issuance hash of local Redis database
               setAssetIssuance(assetIdIssuanceInfo, cb);
             },
@@ -563,12 +889,36 @@ module.exports = function (args) {
         setTxos(utxosChanges.unused, cb)
       },
       function (cb) {
+        if (!utxosChanges.metadata) {
+          return process.nextTick(cb);
+        }
+
+        async.waterfall([
+          function (cb) {
+            if (!utxosChanges.metadata.asset) {
+              return process.nextTick(cb);
+            }
+
+            // Populate asset-metadata hash of local Redis database
+            setAssetMetadata(utxosChanges.metadata.asset, cb);
+          },
+          function (cb) {
+            if (!utxosChanges.metadata.nonFungibleToken) {
+              return process.nextTick(cb);
+            }
+
+            // Populate nftoken-metadata hash of local Redis database
+            setNFTokenMetadata(utxosChanges.metadata.nonFungibleToken, cb);
+          }
+        ], cb);
+      },
+      function (cb) {
         updateParsedMempoolTxids([transaction.txid], cb)
       }
     ], cb)
   }
 
-  var decodeRawTransaction = function (tx) {
+  var decodeRawTransaction = function (tx, cb) {
     var r = {}
     r['txid'] = tx.getId()
     r['version'] = tx.version
@@ -600,11 +950,11 @@ module.exports = function (args) {
         var hex = txout.script.toString('hex')
         try {
           var asm = bitcoinjs.script.toASM(txout.script)
-          var type = bitcoinjsClassify.output(txout.script)
+          var type = ClassifyTxOut.classify(txout.script)
         } catch (e) {
           // Invalid script
           asm = '[error]';
-          type = bitcoinjsClassify.types.NONSTANDARD;
+          type = ClassifyTxOut.outputType.NONSTANDARD;
         }
         var addresses = []
         if (~['witnesspubkeyhash', 'witnessscripthash', 'pubkeyhash', 'scripthash'].indexOf(type)) {
@@ -615,12 +965,23 @@ module.exports = function (args) {
         r['vout'].push(answer)
     })
 
-    var ccdata = getColoredData(r)
-    if (ccdata) {
-      r['ccdata'] = [ccdata]
-      r['colored'] = true
+    if (typeof cb === 'function') {
+      getColoredData(r, (err, ccdata) => {
+        if (err) {
+          return cb(err);
+        }
+
+        if (ccdata) {
+          r['ccdata'] = [ccdata];
+          r['colored'] = true;
+        }
+
+        cb(null, r);
+      });
     }
-    return r
+    else {
+      return r;
+    }
   }
 
   var parseNewBlock = function (block, cb) {
@@ -633,12 +994,10 @@ module.exports = function (args) {
     }
     async.eachSeries(block.transactions, function (transaction, cb) {
       utxosChanges.txids.push(transaction.txid)
-      var coloredData = getColoredData(transaction)
-      if (!coloredData) {
+      if (!transaction.colored) {
         emitter.emit('newtransaction', transaction)
         return process.nextTick(cb)
       }
-      transaction.ccdata = [coloredData]
       parseTransaction(transaction, utxosChanges, block.height, cb)
     }, function (err) {
       if (err) return cb(err)
@@ -682,13 +1041,19 @@ module.exports = function (args) {
       })
       var newMempoolTransactions = []
       bitcoin.cmd(commandsArr, function (rawTransaction, cb) {
-            var newMempoolTransaction = decodeRawTransaction(bitcoinjs.Transaction.fromHex(rawTransaction))
-            newMempoolTransactions.push(newMempoolTransaction)
-            cb()
-          },
-          function (err) {
-            cb(err, newMempoolTransactions)
-          })
+          // Call 'decodeRawTransaction' asynchronously (with a callback) to include colored coins data
+          decodeRawTransaction(bitcoinjs.Transaction.fromHex(rawTransaction), (err, newMempoolTransaction) => {
+            if (err) {
+              return cb(err);
+            }
+
+            newMempoolTransactions.push(newMempoolTransaction);
+            cb();
+          });
+        },
+        function (err) {
+          cb(err, newMempoolTransactions)
+        })
     }
     else {
       cb(null, []);
@@ -721,13 +1086,11 @@ module.exports = function (args) {
           used: {},
           unused: {}
         }
-        var coloredData = getColoredData(newMempoolTransaction)
-        if (!coloredData) {
+        if (!newMempoolTransaction.colored) {
           processedTxids.push(newMempoolTransaction.txid)
           emitter.emit('newtransaction', newMempoolTransaction)
           return process.nextTick(cb)
         }
-        newMempoolTransaction.ccdata = [coloredData]
         parseTransaction(newMempoolTransaction, utxosChanges, -1, function (err) {
           if (err) return cb(err)
           updateMempoolTransactionUtxosChanges(newMempoolTransaction, utxosChanges, function (err) {
@@ -981,45 +1344,57 @@ module.exports = function (args) {
       if (err) {
         return cb(err)
       }
-      var transaction = decodeRawTransaction(bitcoinjs.Transaction.fromHex(txHex))
 
-      var txsToParse = [transaction]
-
-      var txsToCheck = [transaction]
-
-      async.whilst(
-        function() { return txsToCheck.length > 0 },
-        function(callback) {
-          var txids = txsToCheck.map(function(tx) { return tx.vin.map(function(vin) { return vin.txid}) })
-          txids = [].concat.apply([], txids)
-          txids = [...new Set(txids)]
-          txsToCheck = []
-          getNewMempoolTxids(txids, function(err, txids) {
-            if (err) return callback(err)
-            if (txids.length == 0) return callback()
-            var batch = txids.map(function(txid) { return { 'method': 'getrawtransaction', 'params': [txid] } })
-            bitcoin.cmd(
-              batch,
-              function (rawTransaction, cb) {
-                var tx = decodeRawTransaction(bitcoinjs.Transaction.fromHex(rawTransaction))
-                txsToCheck.push(tx)
-                txsToParse.unshift(tx)
-              },
-              function(err) {
-                if (err) return callback(err)
-                return callback()
-              }
-            )
-          })
-        },
-        function (err) {
-          if (err) return cb(null, '{ "txid": "' +  res + '" }')
-          parseNewMempoolTransactions(txsToParse, function(err) {
-            if (err) return cb(null, '{ "txid": "' +  res + '" }')
-            return cb(null, '{ "txid": "' +  res + '" }')
-          })
+      // Call 'decodeRawTransaction' asynchronously (with a callback) to include colored coins data
+      decodeRawTransaction(bitcoinjs.Transaction.fromHex(txHex), (err, transaction) => {
+        if (err) {
+          return cb(err);
         }
-      )
+
+        var txsToParse = [transaction]
+        var txsToCheck = [transaction]
+
+        async.whilst(
+          function() { return txsToCheck.length > 0 },
+          function(callback) {
+            var txids = txsToCheck.map(function(tx) { return tx.vin.map(function(vin) { return vin.txid}) })
+            txids = [].concat.apply([], txids)
+            txids = [...new Set(txids)]
+            txsToCheck = []
+            getNewMempoolTxids(txids, function(err, txids) {
+              if (err) return callback(err)
+              if (txids.length == 0) return callback()
+              var batch = txids.map(function(txid) { return { 'method': 'getrawtransaction', 'params': [txid] } })
+              bitcoin.cmd(
+                batch,
+                function (rawTransaction, cb2) {
+                  // Call 'decodeRawTransaction' asynchronously (with a callback) to include colored coins data
+                  decodeRawTransaction(bitcoinjs.Transaction.fromHex(rawTransaction), (err, tx) => {
+                    if (err) {
+                      return cb2(err);
+                    }
+
+                    txsToCheck.push(tx)
+                    txsToParse.unshift(tx)
+                    cb2();
+                  })
+                },
+                function(err) {
+                  if (err) return callback(err)
+                  return callback()
+                }
+              )
+            })
+          },
+          function (err) {
+            if (err) return cb(null, '{ "txid": "' +  res + '" }')
+            parseNewMempoolTransactions(txsToParse, function(err) {
+              if (err) return cb(null, '{ "txid": "' +  res + '" }')
+              return cb(null, '{ "txid": "' +  res + '" }')
+            })
+          }
+        )
+      });
     })
   }
 
@@ -1480,16 +1855,35 @@ module.exports = function (args) {
     }
   };
 
-  // Return: { - A dictionary where the keys are the transaction IDs
-  //   <txid>: {
-  //     amount: [Number], - The amount of asset issued
-  //     divisibility: [Number], - The number of decimal places used to represent the smallest amount of the asset
-  //     lockStatus: [Boolean], - Indicates whether this is a locked (true) or unlocked (false) asset.
-  //     aggregationPolicy: [String] - Indicates whether asset amount from different UTXOs can be summed together.
-  //                                    Valid values: 'aggregatable', 'hybrid', and 'dispersed'
-  //   }
-  // }
-  const getAssetIssuance = function (args, cb) {
+  /**
+   * Data structure containing information about the issuance of an asset
+   * @typedef {Object} AssetIssuanceInfo
+   * @property {number} amount The asset amount issued
+   * @property {number} divisibility The number of decimal places used to represent the smallest amount of the asset
+   * @property {boolean} lockStatus Indicates whether no more units of this asset can be issued (locked asset)
+   * @property {string} aggregationPolicy The aggregation policy of the asset. One of: 'aggregatable', 'hybrid',
+   *                                       'dispersed' or 'nonFungible'
+   * @property {string[]} [tokenIds] The list of issued non-fungible token IDs. Only present for 'nonFungible'
+   *                                  aggregation policy
+   */
+
+  /**
+   * Callback for handling the result of retrieving issuing information about an asset
+   * @callback getAssetIssuanceCallback
+   * @param {*} [error] An error message, or null if the function successfully returned
+   * @param {Object.<string, AssetIssuanceInfo>} [txidIssuanceInfo] A dictionary of asset issuance info by bitcoin
+   *                                                                 transaction ID
+   */
+
+  /**
+   * API method used to retrieve issuing information about an asset
+   * @param {Object} args
+   * @param {string} args.assetId The asset ID
+   * @param {boolean} [args.waitForParsing] Indicates whether it should wait for the blockchain parsing to complete
+   *                                         before starting its internal processing
+   * @param {getAssetIssuanceCallback} cb The callback for handling the result
+   */
+  function getAssetIssuance(args, cb) {
     const assetId = args.assetId;
 
     if (args.waitForParsing) {
@@ -1501,70 +1895,119 @@ module.exports = function (args) {
 
     function getAssetIssuance_innerProcess() {
       // Get transactions used to issue asset
-      redis.hget('asset-issuance', assetId, function (err, strIssuance) {
-        if (err) return cb(err);
+      redis.hget('asset-issuance', assetId, (err, strIssuance) => {
+        if (err) {
+          return cb(err);
+        }
 
-        const issuance = JSON.parse(strIssuance);
+        if (!strIssuance) {
+          // Return indicating that no issuance information found for the specified asset ID
+          return cb();
+        }
 
-        if (issuance) {
-          const retIssuance = {};
+        let issuance;
 
-          async.eachSeries(Object.keys(issuance), function (txid, cb) {
-            // Prepare issuance info for this transaction
-            const txIssuance = issuance[txid];
-            const issuanceInfo = {
-              amount: new BigNumber(0),
-              divisibility: txIssuance.divisibility,
-              lockStatus: txIssuance.lockStatus,
-              aggregationPolicy: txIssuance.aggregationPolicy
-            };
+        try {
+          issuance = JSON.parse(strIssuance);
+        }
+        catch (err) {
+          return cb(err);
+        }
 
-            // Compute issued asset amount
-            redis.hget('transaction-utxos', txid, function (err, strUtxos) {
-              if (err) return cb(err);
+        const retIssuance = {};
 
-              const utxos = JSON.parse(strUtxos);
+        async.eachSeries(Object.keys(issuance), function (txid, cb) {
+          // Prepare issuance info for this transaction
+          const txIssuance = issuance[txid];
+          const issuanceInfo = {
+            amount: new BigNumber(0),
+            divisibility: txIssuance.divisibility,
+            lockStatus: txIssuance.lockStatus,
+            aggregationPolicy: txIssuance.aggregationPolicy
+          };
+          const issuedTokenIds = new Set();
 
-              async.each(utxos, function (utxo, cb) {
-                redis.hget('utxos', utxo, function (err, strAssets) {
-                  const assets = JSON.parse(strAssets);
+          // Compute issued asset amount
+          redis.hget('transaction-utxos', txid, (err, strUtxos) => {
+            if (err) {
+              return cb(err);
+            }
 
-                  assets.forEach((asset) => {
-                    if (asset.assetId === assetId && asset.issueTxid === txid) {
-                      // Accumulate issued asset amount
-                      const bnAssetAmount = new BigNumber(asset.amount).dividedBy(Math.pow(10, asset.divisibility));
+            let utxos;
 
-                      issuanceInfo.amount = issuanceInfo.amount.plus(bnAssetAmount);
+            try {
+              utxos = JSON.parse(strUtxos);
+            }
+            catch (err) {
+              return cb(err);
+            }
+
+            async.each(utxos, function (utxo, cb) {
+              redis.hget('utxos', utxo, function (err, strAssets) {
+                if (err) {
+                  return cb(err);
+                }
+
+                let assets;
+
+                try {
+                  assets = JSON.parse(strAssets);
+                }
+                catch (err) {
+                  return cb(err);
+                }
+
+                for (const asset of assets) {
+                  if (asset.assetId === assetId && asset.issueTxid === txid) {
+                    // Accumulate issued asset amount
+                    const bnAssetAmount = new BigNumber(asset.amount).dividedBy(Math.pow(10, asset.divisibility));
+
+                    issuanceInfo.amount = issuanceInfo.amount.plus(bnAssetAmount);
+
+                    if (asset.tokenId) {
+                      if (issuedTokenIds.has(asset.tokenId)) {
+                        // Inconsistency: non-fungible token should not be listed more than once by UTXOs.
+                        //  Return error
+                        return cb(new Error(`Non-fungible token (tokenId: ${asset.tokenId}) should not be listed more than once by UTXOs`));
+                      }
+
+                      // Record issued non-fungible token ID
+                      issuedTokenIds.add(asset.tokenId);
                     }
-                  });
+                  }
+                }
 
-                  cb(null);
-                });
-              }, function (err) {
-                if (err) return cb(err);
-
-                // Convert accumulated asset amount to number and save issuance info
-                //  for this transaction
-                issuanceInfo.amount = issuanceInfo.amount.toNumber();
-
-                retIssuance[txid] = issuanceInfo;
-
-                cb(null)
+                cb();
               });
-            });
-          }, function (err) {
-            if (err) return cb(err);
+            }, function (err) {
+              if (err) {
+                return cb(err);
+              }
 
-            cb(null, retIssuance);
+              // Convert accumulated asset amount to number and save issuance info
+              //  for this transaction
+              issuanceInfo.amount = issuanceInfo.amount.toNumber();
+
+              if (issuedTokenIds.size > 0) {
+                // Add issued non-fungible token IDs to asset issuance info
+                issuanceInfo.tokenIds = Array.from(issuedTokenIds)
+              }
+
+              retIssuance[txid] = issuanceInfo;
+
+              cb();
+            });
           });
-        }
-        else {
-          // Asset not found. Do not return anything
-          cb(null);
-        }
+        }, function (err) {
+          if (err) {
+            return cb(err);
+          }
+
+          cb(null, retIssuance);
+        });
       });
     }
-  };
+  }
 
   // Return: {
   //   address: [String] - The blockchain address used to issued amount of this asset
@@ -1691,6 +2134,556 @@ module.exports = function (args) {
     }
   };
 
+  /**
+   * Callback for handling the result of retrieving an entity's (either an asset or a non-fungible token) metadata
+   * @callback getMetadataCallback
+   * @param {*} [error] An error message, or null if the function successfully returned
+   * @param {Object} [metadata] The retrieved metadata
+   */
+
+  /**
+   * API method used to retrieve the metadata associated with an asset
+   * @param {Object} args
+   * @param {string} args.assetId The asset ID
+   * @param {boolean} [args.waitForParsing] Indicates whether it should wait for the blockchain parsing to complete
+   *                                         before starting its internal processing
+   * @param {getMetadataCallback} cb The callback for handling the result
+   */
+  function getAssetMetadata(args, cb) {
+    if (args.waitForParsing) {
+      parseControl.doProcess(getAssetMetadata_innerProcess);
+    }
+    else {
+      getAssetMetadata_innerProcess();
+    }
+
+    function getAssetMetadata_innerProcess() {
+      redis.hget('asset-metadata', args.assetId, (err, metadata) => {
+        if (err) {
+          return cb(err);
+        }
+
+        if (!metadata) {
+          // Return indicating that no metadata was found
+          return cb();
+        }
+
+        let parsedMetadata;
+
+        try {
+          parsedMetadata = JSON.parse(metadata);
+        }
+        catch (err) {
+          return cb(err);
+        }
+
+        cb(null, parsedMetadata);
+      });
+    }
+  }
+
+  /**
+   * API method used to retrieve the metadata associated with a non-fungible token
+   * @param {Object} args
+   * @param {string} args.tokenId The non-fungible token ID
+   * @param {boolean} [args.waitForParsing] Indicates whether it should wait for the blockchain parsing to complete
+   *                                        before starting its internal processing
+   * @param {getMetadataCallback} cb The callback for handling the result
+   */
+  function getNFTokenMetadata(args, cb) {
+    if (args.waitForParsing) {
+      parseControl.doProcess(getNFTokenMetadata_innerProcess);
+    }
+    else {
+      getNFTokenMetadata_innerProcess();
+    }
+
+    function getNFTokenMetadata_innerProcess() {
+      redis.hget('nftoken-metadata', args.tokenId, (err, metadata) => {
+        if (err) {
+          return cb(err);
+        }
+
+        if (!metadata) {
+          // Return indicating that no metadata was found
+          return cb();
+        }
+
+        let parsedMetadata;
+
+        try {
+          parsedMetadata = JSON.parse(metadata);
+        }
+        catch (err) {
+          return cb(err);
+        }
+
+        cb(null, parsedMetadata);
+      });
+    }
+  }
+
+  /**
+   * Callback for handling the result of getting the asset to which a non-fungible token pertains
+   * @callback getNFTokenAssetCallback
+   * @param {*} [error] An error message, or null if the function successfully returned
+   * @param {string} [asseId] The returned asset ID
+   */
+
+  /**
+   * API method used to get the asset to which a non-fungible token pertains
+   * @param {Object} args
+   * @param {string} args.tokenId The non-fungible token ID
+   * @param {boolean} [args.waitForParsing] Indicates whether it should wait for the blockchain parsing to complete
+   *                                         before starting its internal processing
+   * @param {getNFTokenAssetCallback} cb The callback for handling the result
+   */
+  function getNFTokenAsset(args, cb) {
+    if (args.waitForParsing) {
+      parseControl.doProcess(getNFTokenAsset_innerProcess);
+    }
+    else {
+      getNFTokenAsset_innerProcess();
+    }
+
+    function getNFTokenAsset_innerProcess() {
+      redis.hget('nftoken-asset', args.tokenId, (err, assetId) => {
+        if (err) {
+          return cb(err);
+        }
+
+        if (!assetId) {
+          // Return indicating that no asset was found for the given non-fungible token ID
+          return cb();
+        }
+
+        cb(null, assetId);
+      });
+    }
+  }
+
+  /**
+   * Data structure containing information about the possession of a non-fungible token
+   * @typedef {Object} NFTokenHolding
+   * @property {(string|undefined)} address The bitcoin address that holds the non-fungible token. Can be set to
+   *                                         undefined to indicate that the non-fungible token is not currently held
+   *                                         by any address (e.g. a burnt non-fungible token)
+   * @property {boolean} unconfirmed Indicates whether the possession is still unconfirmed (paying bitcoin tx is not
+   *                                  yet confirmed).
+   */
+
+  /**
+   * Callback for handling the result of getting the bitcoin address that currently holds a non-fungible token
+   * @callback getNFTokenOwnerCallback
+   * @param {*} [error] An error message, or null if the function successfully returned
+   * @param {NFTokenHolding} [holdingInfo] The info about the non-fungible token possession
+   */
+
+  /**
+   * Get non-fungible token holding information
+   * @param {string} tokenId The non-fungible token ID
+   * @param {number} numOfConfirmations Minimum required confirmations that a (non-fungible token paying) bitcoin tx
+   *                                     needs to have to be included in the processing
+   * @param {getNFTokenOwnerCallback} cb The callback for handling the result
+   * @private
+   */
+  function _getNFTokenHoldingInfo(tokenId, numOfConfirmations,  cb) {
+    // Get addresses associated with non-fungible token
+    redis.hget('nftoken-addresses', tokenId, (err, strAddresses) => {
+      if (err) {
+        return cb(err);
+      }
+
+      if (!strAddresses) {
+        // Return indicating that no possession info was found for the given non-fungible token ID
+        return cb();
+      }
+
+      let addresses;
+
+      try {
+        addresses = JSON.parse(strAddresses);
+      }
+      catch (err) {
+        return cb(err);
+      }
+
+      if (addresses.length > 0) {
+        // Retrieve UTXOs associated with non-fungible token addresses
+        bitcoin.cmd('listunspent', [numOfConfirmations, 99999999, addresses], (err, utxos) => {
+          if (err) {
+            return cb(err);
+          }
+
+          let tokenHoldingInfo;
+
+          async.each(utxos, function (utxo, cb) {
+            // Identify UTXO that contains non-fungible token
+            redis.hget('utxos', utxo.txid + ':' + utxo.vout, function (err, strAssets) {
+              if (err) {
+                return cb(err);
+              }
+
+              if (tokenHoldingInfo || !strAssets) {
+                // UTXO containing non-fungible token already identified, or
+                //  no assets assigned to this UTXO. Nothing to do
+                return cb();
+              }
+
+              let assets;
+
+              try {
+                assets = JSON.parse(strAssets);
+              }
+              catch (err) {
+                return cb(err);
+              }
+
+              for (const asset of assets) {
+                if (asset.tokenId === tokenId) {
+                  // Save non-fungible token holding info, and stop iteration
+                  tokenHoldingInfo = {
+                    address: utxo.address,
+                    unconfirmed: utxo.confirmations === 0
+                  };
+
+                  break;
+                }
+              }
+
+              cb();
+            });
+          }, function (err) {
+            if (err) {
+              return cb(err);
+            }
+
+            if (!tokenHoldingInfo) {
+              // No UTXO currently contains that non-fungible token. So set holding info accordingly
+              tokenHoldingInfo = {
+                address: undefined,
+                unconfirmed: false
+              }
+            }
+
+            cb(null, tokenHoldingInfo);
+          });
+        });
+      }
+      else {
+        // Empty list of addresses. Return indicating that no address currently holds that non-fungible token
+        cb(null, {
+          address: undefined,
+          unconfirmed: false
+        });
+      }
+    });
+  }
+
+  /**
+   * API method used to get the bitcoin address that currently holds a non-fungible token
+   * @param {Object} args
+   * @param {string} args.tokenId The non-fungible token ID
+   * @param {number} [args.numOfConfirmations=0] Minimum required confirmations that a (non-fungible token paying)
+   *                                              bitcoin tx needs to have to be included in the processing
+   * @param {boolean} [args.waitForParsing] Indicates whether it should wait for the blockchain parsing to complete
+   *                                         before starting its internal processing
+   * @param {getNFTokenOwnerCallback} cb The callback for handling the result
+   */
+  function getNFTokenOwner(args, cb) {
+    const numOfConfirmations = args.numOfConfirmations || 0;
+
+    if (args.waitForParsing) {
+      parseControl.doProcess(getNFTokenOwner_innerProcess);
+    }
+    else {
+      getNFTokenOwner_innerProcess();
+    }
+
+    function getNFTokenOwner_innerProcess() {
+      _getNFTokenHoldingInfo(args.tokenId, numOfConfirmations, cb);
+    }
+  }
+
+  /**
+   * Callback for handling the result of retrieving a list of all non-fungible tokens currently issued for a
+   *  non-fungible asset
+   * @callback getIssuedNFTokensCallback
+   * @param {*} [error] An error message, or null if the function successfully returned
+   * @param {string[]} [tokenIds] List of issued non-fungible tokens. Will be an empty list if the specified asset ID
+   *                               does not correspond to a non-fungible asset
+   */
+
+  /**
+   * Retrieve a list of all non-fungible tokens currently issued for a non-fungible asset
+   * @param assetId The asset ID
+   * @param {getIssuedNFTokensCallback} cb The callback for handling the result
+   * @private
+   */
+  function _getIssuedNFTokens(assetId, cb) {
+    // Get transactions used to issue asset
+    redis.hget('asset-issuance', assetId, (err, strIssuance) => {
+      if (err) {
+        return cb(err);
+      }
+
+      if (!strIssuance) {
+        // Return indicating that no issued non-fungible token was found for the given asset ID
+        return cb();
+      }
+
+      let issuance;
+
+      try {
+        issuance = JSON.parse(strIssuance);
+      } catch (err) {
+        return cb(err);
+      }
+
+      const issuedTokenIds = new Set();
+
+      async.eachSeries(Object.keys(issuance), function (txid, cb) {
+        const txIssuance = issuance[txid];
+
+        if (txIssuance.aggregationPolicy !== 'nonFungible') {
+          // Not a non-fungible asset. Nothing to do
+          return cb();
+        }
+
+        // Get issued non-fungible tokens
+        redis.hget('transaction-utxos', txid, (err, strUtxos) => {
+          if (err) {
+            return cb(err);
+          }
+
+          let utxos;
+
+          try {
+            utxos = JSON.parse(strUtxos);
+          }
+          catch (err) {
+            return cb(err);
+          }
+
+          async.each(utxos, function (utxo, cb) {
+            redis.hget('utxos', utxo, (err, strAssets) => {
+              if (err) {
+                return bc(err);
+              }
+
+              let assets;
+
+              try {
+                assets = JSON.parse(strAssets);
+              }
+              catch (err) {
+                return cb(err);
+              }
+
+              for (const asset of assets) {
+                if (asset.assetId === assetId && asset.issueTxid === txid && asset.tokenId) {
+                  if (issuedTokenIds.has(asset.tokenId)) {
+                    // Inconsistency: non-fungible token should not be listed more than once by UTXOs.
+                    //  Return error
+                    return cb(new Error(`Non-fungible token (tokenId: ${asset.tokenId}) should not be listed more than once by UTXOs`));
+                  }
+
+                  // Record issued non-fungible token ID
+                  issuedTokenIds.add(asset.tokenId);
+                }
+              }
+
+              cb();
+            });
+          }, cb);
+        });
+      }, err => {
+        if (err) {
+          return cb(err);
+        }
+
+        // Return issued non-fungible token IDs
+        cb(null, Array.from(issuedTokenIds));
+      });
+    });
+  }
+
+  /**
+   * Callback for handling the result of retrieving the bitcoin addresses that currently hold each of the non-fungible
+   *  tokens pertaining to a non-fungible asset
+   * @callback getAllNFTokensOwnerCallback
+   * @param {*} [error] An error message, or null if the function successfully returned
+   * @param {Object.<string, NFTokenHolding>} [tokenIdHoldingInfo] A dictionary of info about non-fungible token
+   *                                                                possession by token ID
+   */
+
+  /**
+   * API method used to retrieve the bitcoin addresses that currently hold each of the non-fungible tokens pertaining
+   *  to a non-fungible asset
+   * @param {Object} args
+   * @param {string} args.assetId The asset ID
+   * @param {number} [args.numOfConfirmations=0] Minimum required confirmations that a (non-fungible token paying)
+   *                                              bitcoin tx needs to have to be included in the processing
+   * @param {boolean} [args.waitForParsing] Indicates whether it should wait for the blockchain parsing to complete
+   *                                         before starting its internal processing
+   * @param {getAllNFTokensOwnerCallback} cb The callback for handling the result
+   */
+  function getAllNFTokensOwner(args, cb) {
+    const numOfConfirmations = args.numOfConfirmations || 0;
+
+    if (args.waitForParsing) {
+      parseControl.doProcess(getAllNFTokensOwner_innerProcess);
+    }
+    else {
+      getAllNFTokensOwner_innerProcess();
+    }
+
+    function getAllNFTokensOwner_innerProcess() {
+      _getIssuedNFTokens(args.assetId, (err, tokenIds) => {
+        if (err) {
+          return cb(err);
+        }
+
+        if (!tokenIds || tokenIds.length === 0) {
+          // Return indicating that no issued non-fungible token was found for the given asset ID
+          return cb();
+        }
+
+        const tokenIdHoldingInfo = {};
+
+        async.eachSeries(tokenIds, function(tokenId, cb) {
+          _getNFTokenHoldingInfo(tokenId, numOfConfirmations, (err, holdingInfo) => {
+            if (err) {
+              return cb(err);
+            }
+
+            // Record non-fungible token holding info
+            tokenIdHoldingInfo[tokenId] = holdingInfo;
+
+            cb();
+          });
+        }, err => {
+          if (err) {
+            return cb(err);
+          }
+
+          cb(null, tokenIdHoldingInfo);
+        });
+      });
+    }
+  }
+
+  /**
+   * Data structured containing information about an owned non-fungible token
+   * @typedef {Object} OwnedNFToken
+   * @property {string} tokenId The non-fungible token ID
+   * @property {boolean} unconfirmed Indicates whether the possession is still unconfirmed (paying bitcoin tx is not
+   *                                  yet confirmed).
+   */
+
+  /**
+   * Callback for handling the result of retrieving the non-fungible tokens currently held by a set of bitcoin addresses
+   * @callback getOwnedNFTokensCallback
+   * @param {*} [error] An error message, or null if the function successfully returned
+   * @param {Object.<string, OwnedNFToken[]>} [asseIdOwnedInfos] A dictionary of info about owned non-fungible tokens by
+   *                                                              asset ID
+   */
+
+  /**
+   * API method used to retrieve the non-fungible tokens currently held by a set of bitcoin addresses
+   * @param {Object} args
+   * @param {string[]} args.addresses The list of bitcoin addresses
+   * @param {string} [args.assetId] The optional asset ID to filter the result. If set, only non-fungible tokens that
+   *                                 pertain to that (non-fungible) asset are returned
+   * @param {number} [args.numOfConfirmations=0] Minimum required confirmations that a (non-fungible token paying)
+   *                                              bitcoin tx needs to have to be included in the processing
+   * @param {boolean} [args.waitForParsing] Indicates whether it should wait for the blockchain parsing to complete
+   *                                         before starting its internal processing
+   * @param {getOwnedNFTokensCallback} cb The callback for handling the result
+   */
+  function getOwnedNFTokens(args, cb) {
+    const addresses = args.addresses;
+    const assetId = args.assetId;
+    const numOfConfirmations = args.numOfConfirmations || 0;
+
+    if (args.waitForParsing) {
+      parseControl.doProcess(getOwnedNFTokens_innerProcess);
+    }
+    else {
+      getOwnedNFTokens_innerProcess();
+    }
+
+    function getOwnedNFTokens_innerProcess() {
+      if (!Array.isArray(addresses) || addresses.length === 0) {
+        // Return indicating that bitcoin addresses could not be processed
+        return cb();
+      }
+
+      // Retrieve UTXOs associated with given addresses
+      bitcoin.cmd('listunspent', [numOfConfirmations, 99999999, addresses], function (err, utxos) {
+        if (err) {
+          return cb(err);
+        }
+
+        const assetIdOwnedInfos = {};
+        const tokenIds = new Set();
+
+        async.each(utxos, function (utxo, cb) {
+          // Get assets associated with UTXO
+          redis.hget('utxos', utxo.txid + ':' + utxo.vout, function (err, strAssets) {
+            if (err) {
+              return cb(err);
+            }
+
+            if (!strAssets) {
+              // No assets assigned to UTXO. Nothing to do
+              return cb();
+            }
+
+            let assets;
+
+            try {
+              assets = JSON.parse(strAssets);
+            }
+            catch (err) {
+              return cb(err);
+            }
+
+            for (const asset of assets) {
+              if ((!assetId || asset.assetId === assetId) && asset.tokenId) {
+                if (tokenIds.has(asset.tokenId)) {
+                  // Inconsistency: non-fungible token should not be listed more than once by UTXOs.
+                  //  Return error
+                  return cb(new Error(`Non-fungible token (tokenId: ${asset.tokenId}) should not be listed more than once by UTXOs`));
+                }
+
+                tokenIds.add(asset.tokenId);
+
+                // Record non-fungible token owned info
+                if (!(asset.assetId in assetIdOwnedInfos)) {
+                  assetIdOwnedInfos[asset.assetId] = [];
+                }
+
+                assetIdOwnedInfos[asset.assetId].push({
+                  tokenId: asset.tokenId,
+                  unconfirmed: utxo.confirmations === 0
+                });
+              }
+            }
+
+            cb();
+          });
+        }, function (err) {
+          if (err) {
+            return cb(err);
+          }
+
+          cb(null, assetIdOwnedInfos);
+        });
+      });
+    }
+  }
+
   var injectColoredUtxos = function (method, params, ans, cb) {
     // TODO
     cb(null, ans)
@@ -1703,7 +2696,7 @@ module.exports = function (args) {
     })
   }
 
-  return {
+  let toExport = {
     parse: parse,
     importAddresses: importAddresses,
     parseNow: parseNow,
@@ -1720,6 +2713,35 @@ module.exports = function (args) {
     getAssetIssuingAddress: getAssetIssuingAddress,
     getOwningAssets: getOwningAssets,
     proxyBitcoinD: proxyBitcoinD,
+    getAssetMetadata,
+    getNFTokenMetadata,
+    getNFTokenAsset,
+    getNFTokenOwner,
+    getAllNFTokensOwner,
+    getOwnedNFTokens,
     emitter: emitter
+  };
+
+  if (isMochaRunning()) {
+    // Export additional variables/functions for testing
+    toExport = {
+      ...toExport,
+      redis,
+      bitcoin,
+      network: bitcoinNetwork,
+      decodeRawTransaction,
+      parseTransaction,
+      updateUtxosChanges,
+      updateMempoolTransactionUtxosChanges,
+      getColoredData,
+      getCCMetadata,
+      _getIssuedNFTokens
+    };
   }
+
+  return toExport;
+}
+
+function isMochaRunning() {
+  return typeof global.it === 'function';
 }

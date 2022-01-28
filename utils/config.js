@@ -210,6 +210,10 @@ module.exports = function (propertiesFile) {
     properties.bitcoinTimeout = parseInt(properties.bitcoinTimeout || process.env.BITCOIND_TIMEOUT || 30000, 10)
   }
 
+  properties.ipfsHost = properties.ipfsHost || process.env.IPFS_CLIENT_HOST || 'localhost';
+  properties.ipfsPort = parseInt(properties.ipfsPort || process.env.IPFS_CLIENT_PORT) || 9095;
+  properties.ipfsProtocol = properties.ipfsProtocol || process.env.IPFS_CLIENT_PROTOCOL || 'http';
+
   properties.bitcoindAutoRun = (properties.bitcoindAutoRun || process.env.BITCOIND_AUTO_RUN === 'true')
 
   if (properties.bitcoindAutoRun) {
