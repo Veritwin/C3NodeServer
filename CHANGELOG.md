@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.11] - 2022-05-30
+
+### Changes
+- Enhancements to handle non-fungible assets/tokens.
+- Updated dependency module `catenis-colored-coins` to its latest version (0.4.1).
+
 ## [0.1.10] - 2021-05-29
 
 ### Changes
