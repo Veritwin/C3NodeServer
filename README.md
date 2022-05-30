@@ -57,4 +57,4 @@ parser_props.conf as appropriate— configuration file are properly configured:
 
 This project is for Blockchain of Things' internal use only.
 
-Copyright © 2018-2020, Blockchain of Things Inc.
+Copyright © 2018-2022, Blockchain of Things Inc.
