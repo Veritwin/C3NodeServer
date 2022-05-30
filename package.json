@@ -20,7 +20,7 @@
   "private": true,
   "author": "Cláudio de Castro",
   "dependencies": {
-    "async": "^3.2.0",
+    "async": "^3.2.3",
     "basic-auth": "^2.0.1",
     "bignumber.js": "^7.2.1",
     "bitcoin-async": "^1.0.0",
