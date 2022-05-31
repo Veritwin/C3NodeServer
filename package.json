@@ -32,6 +32,7 @@
     "express": "^4.17.1",
     "iniparser": "^1.0.5",
     "ipfs-http-client": "^54.0.2",
+    "ipfs-utils": "9.0.2",
     "it-to-buffer": "^2.0.2",
     "lodash": "^4.17.21",
     "morgan": "^1.10.0",
@@ -39,7 +40,12 @@
     "path-extra": "^4.3.0",
     "redis": "^3.1.2",
     "socket.io": "^4.4.1",
+    "tiny-secp256k1": "^1.1.6",
     "toposort": "^2.0.2"
+  },
+  "dependenciesComments": {
+    "ipfs-utils": "Note: although this library does not directly depend on this module, it is added as a dependency here to force the use of version 9.0.2, which is the latest version that is compatible with Node.js 14.x",
+    "tiny-secp256k1": "Note: although this library does not directly depend on this module, it is added as a dependency here to force the use of version 1.1.6 (or higher) so it can be successfully built on Node.js 14.x"
   },
   "repository": "git@bitbucket.org:blockchainofthings/c3nodeserver.git",
   "devDependencies": {
