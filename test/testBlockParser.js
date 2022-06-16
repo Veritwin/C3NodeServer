@@ -2464,11 +2464,11 @@ describe('New and updated API methods for non-fungible assets/tokens', function 
 
     it('should return the correct asset ID for non-fungible tokens', function (done) {
       const expectedResult = [
-        testAssetIds[0],
-        testAssetIds[0],
-        testAssetIds[0],
-        testAssetIds[1],
-        testAssetIds[1]
+        {assetId: testAssetIds[0]},
+        {assetId: testAssetIds[0]},
+        {assetId: testAssetIds[0]},
+        {assetId: testAssetIds[1]},
+        {assetId: testAssetIds[1]}
       ];
 
       async.reduce(testNFTokenIds, [], function(compoundResult, tokenId, cb) {

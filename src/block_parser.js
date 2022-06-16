@@ -2224,10 +2224,16 @@ module.exports = function (args) {
   }
 
   /**
+   * Non-fungible asset identification info
+   * @typedef {Object} NFAssetID
+   * @property {string} assetId The Colored Coins asset ID
+   */
+
+  /**
    * Callback for handling the result of getting the asset to which a non-fungible token pertains
    * @callback getNFTokenAssetCallback
    * @param {*} [error] An error message, or null if the function successfully returned
-   * @param {string} [asseId] The returned asset ID
+   * @param {NFAssetID} [asset] The returned non-fungible asset identification info
    */
 
   /**
@@ -2257,7 +2263,9 @@ module.exports = function (args) {
           return cb();
         }
 
-        cb(null, assetId);
+        cb(null, {
+          assetId
+        });
       });
     }
   }
