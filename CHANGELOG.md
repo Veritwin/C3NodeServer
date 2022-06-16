@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.12] - 2022-06-16
+
+### Fixes
+- Change the data type returned by the `getNFTokenAsset` API method so that a JSON is returned.
+
 ## [0.1.11] - 2022-05-30
 
 ### Changes
