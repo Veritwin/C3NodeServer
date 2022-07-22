@@ -482,7 +482,7 @@ module.exports = function (args) {
       function (cb) {
         var assetIdAddresses = {};
         const tokenIdAddresses = {};
-        const tokenIdAssetId = {};
+        const tokenIdIssuance = {};
         var assetIdIssuanceInfo = {};
         var txidTxouts = {};
         var addressTxouts = {};
@@ -504,9 +504,12 @@ module.exports = function (args) {
             assetIdAssetInfo[assetInfo.assetId] = assetInfo;
 
             if (assetInfo.tokenId) {
-              // Record asset ID of non-fungible token
-              if (!(assetInfo.tokenId in tokenIdAssetId)) {
-                tokenIdAssetId[assetInfo.tokenId] = assetInfo.assetId;
+              // Record issuance info (asset ID, and issuing tx ID) of non-fungible token
+              if (!(assetInfo.tokenId in tokenIdIssuance)) {
+                tokenIdIssuance[assetInfo.tokenId] = {
+                  assetId: assetInfo.assetId,
+                  txid: assetInfo.issueTxid
+                };
               }
 
               // Identify addresses associated with non-fungible tokens
@@ -576,12 +579,12 @@ module.exports = function (args) {
               setNFTokenAddresses(tokenIdAddresses, cb);
             },
             function (cb) {
-              if (Object.keys(tokenIdAssetId).length === 0) {
+              if (Object.keys(tokenIdIssuance).length === 0) {
                 return process.nextTick(cb);
               }
 
-              // Populate nftoken-asset hash of local Redis database
-              setNFTokenAsset(tokenIdAssetId, cb);
+              // Populate nftoken-issuance hash of local Redis database
+              setNFTokenIssuance(tokenIdIssuance, cb);
             },
             function (cb) {
               // Populate asset-issuance hash of local Redis database
@@ -686,13 +689,25 @@ module.exports = function (args) {
   }
 
   /**
-   * Record non-fungible asset (asset ID) to which non-fungible tokens (token ID) pertain
-   * @param {Object.<string, string>} tokenIdAssetId A dictionary of asset ID by non-fungible token ID
+   * Record issuance info of non-fungible token
+   * @param {Object.<string, Object>} tokenIdIssuance A dictionary of issuance info (asset ID and issuing tx ID) by
+   *                                                   non-fungible token ID
    * @param {Function} cb A callback function
    */
-  function setNFTokenAsset(tokenIdAssetId, cb) {
-    async.each(Object.keys(tokenIdAssetId), function (tokenId, cb) {
-      redis.hset('nftoken-asset', tokenId, tokenIdAssetId[tokenId], cb);
+  function setNFTokenIssuance(tokenIdIssuance, cb) {
+    async.each(Object.keys(tokenIdIssuance), function (tokenId, cb) {
+      redis.hexists('nftoken-issuance', tokenId, (err, exists) => {
+        if (err) {
+          return cb(err);
+        }
+
+        if (!exists) {
+          redis.hset('nftoken-issuance', tokenId, JSON.stringify(tokenIdIssuance[tokenId]), cb);
+        }
+        else {
+          cb(null);
+        }
+      })
     }, cb);
   }
 
@@ -768,7 +783,7 @@ module.exports = function (args) {
       function (cb) {
         var assetIdAddresses = {};
         const tokenIdAddresses = {};
-        const tokenIdAssetId = {};
+        const tokenIdIssuance = {};
         var assetIdIssuanceInfo = {};
         var txidTxouts = {};
         var addressTxouts = {};
@@ -788,9 +803,12 @@ module.exports = function (args) {
             assetIdAssetInfo[assetInfo.assetId] = assetInfo;
 
             if (assetInfo.tokenId) {
-              // Record asset ID of non-fungible token
-              if (!(assetInfo.tokenId in tokenIdAssetId)) {
-                tokenIdAssetId[assetInfo.tokenId] = assetInfo.assetId;
+              // Record issuance info (asset ID, and issuing tx ID) of non-fungible token
+              if (!(assetInfo.tokenId in tokenIdIssuance)) {
+                tokenIdIssuance[assetInfo.tokenId] = {
+                  assetId: assetInfo.assetId,
+                  txid: assetInfo.issueTxid
+                };
               }
 
               // Identify addresses associated with non-fungible tokens
@@ -860,12 +878,12 @@ module.exports = function (args) {
               setNFTokenAddresses(tokenIdAddresses, cb);
             },
             function (cb) {
-              if (Object.keys(tokenIdAssetId).length === 0) {
+              if (Object.keys(tokenIdIssuance).length === 0) {
                 return process.nextTick(cb);
               }
 
-              // Populate nftoken-asset hash of local Redis database
-              setNFTokenAsset(tokenIdAssetId, cb);
+              // Populate nftoken-issuance hash of local Redis database
+              setNFTokenIssuance(tokenIdIssuance, cb);
             },
             function (cb) {
               // Populate asset-issuance hash of local Redis database
@@ -2224,48 +2242,56 @@ module.exports = function (args) {
   }
 
   /**
-   * Non-fungible asset identification info
-   * @typedef {Object} NFAssetID
-   * @property {string} assetId The Colored Coins asset ID
+   * Non-fungible token issuance info
+   * @typedef {Object} NFTokenIssuance
+   * @property {string} assetId The Colored Coins asset ID of the asset to which the non-fungible token pertains
+   * @property {string} txid The ID of the transaction that issued the non-fungible token
    */
 
   /**
-   * Callback for handling the result of getting the asset to which a non-fungible token pertains
-   * @callback getNFTokenAssetCallback
+   * Callback for handling the result of getting the issuance info of a non-fungible token
+   * @callback getNFTokenIssuanceCallback
    * @param {*} [error] An error message, or null if the function successfully returned
-   * @param {NFAssetID} [asset] The returned non-fungible asset identification info
+   * @param {NFTokenIssuance} [issuance] The returned non-fungible token issuance info
    */
 
   /**
-   * API method used to get the asset to which a non-fungible token pertains
+   * API method used to retrieve the issuance information of a non-fungible token
    * @param {Object} args
    * @param {string} args.tokenId The non-fungible token ID
    * @param {boolean} [args.waitForParsing] Indicates whether it should wait for the blockchain parsing to complete
    *                                         before starting its internal processing
-   * @param {getNFTokenAssetCallback} cb The callback for handling the result
+   * @param {getNFTokenIssuanceCallback} cb The callback for handling the result
    */
-  function getNFTokenAsset(args, cb) {
+  function getNFTokenIssuance(args, cb) {
     if (args.waitForParsing) {
-      parseControl.doProcess(getNFTokenAsset_innerProcess);
+      parseControl.doProcess(getNFTokenIssuance_innerProcess);
     }
     else {
-      getNFTokenAsset_innerProcess();
+      getNFTokenIssuance_innerProcess();
     }
 
-    function getNFTokenAsset_innerProcess() {
-      redis.hget('nftoken-asset', args.tokenId, (err, assetId) => {
+    function getNFTokenIssuance_innerProcess() {
+      redis.hget('nftoken-issuance', args.tokenId, (err, strIssuance) => {
         if (err) {
           return cb(err);
         }
 
-        if (!assetId) {
-          // Return indicating that no asset was found for the given non-fungible token ID
+        if (!strIssuance) {
+          // Return indicating that no issuance info was found for the given non-fungible token ID
           return cb();
         }
 
-        cb(null, {
-          assetId
-        });
+        let issuance;
+
+        try {
+          issuance = JSON.parse(strIssuance);
+        }
+        catch (err) {
+          return cb(err);
+        }
+
+        cb(null, issuance);
       });
     }
   }
@@ -2723,7 +2749,7 @@ module.exports = function (args) {
     proxyBitcoinD: proxyBitcoinD,
     getAssetMetadata,
     getNFTokenMetadata,
-    getNFTokenAsset,
+    getNFTokenIssuance,
     getNFTokenOwner,
     getAllNFTokensOwner,
     getOwnedNFTokens,

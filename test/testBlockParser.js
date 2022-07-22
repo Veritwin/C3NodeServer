@@ -1233,10 +1233,19 @@ describe('Parse & store Colored Coins tx with non-fungible tokens', function() {
         'asset-metadata': {
           LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v: JSON.stringify(testMetadata[0].metadata)
         },
-        'nftoken-asset': {
-          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1K4DLji: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
-          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1Tuiw2M: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
-          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1bFs2is: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v'
+        'nftoken-issuance': {
+          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1K4DLji: JSON.stringify({
+            assetId: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
+            txid: '841f14f80b3f9f0b0d9f353c7ec2d517121ed948542bd0a0f1c080c29141eaff'
+          }),
+          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1Tuiw2M: JSON.stringify({
+            assetId: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
+            txid: '841f14f80b3f9f0b0d9f353c7ec2d517121ed948542bd0a0f1c080c29141eaff'
+          }),
+          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1bFs2is: JSON.stringify({
+            assetId: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
+            txid: '841f14f80b3f9f0b0d9f353c7ec2d517121ed948542bd0a0f1c080c29141eaff'
+          })
         },
         'nftoken-addresses': {
           Tk97fk8Rg27toQW68faxhnDuYeFEoLC1K4DLji: '["bcrt1qa48jdr7u553yve2ndlmuahjl0swnakswekpslu"]',
@@ -1300,11 +1309,23 @@ describe('Parse & store Colored Coins tx with non-fungible tokens', function() {
           LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v: JSON.stringify(testMetadata[0].metadata),
           Un9SCo6v9JUa23TBcKwbW8Sr4Ytcvt2XS4NXwe: JSON.stringify(testMetadata[1].metadata)
         },
-        'nftoken-asset': {
-          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1K4DLji: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
-          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1Tuiw2M: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
-          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1bFs2is: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
-          Tk5xp9oaUMw1uZsy7nz6UjZLM2j9La77r4xNnF: 'Un9SCo6v9JUa23TBcKwbW8Sr4Ytcvt2XS4NXwe'
+        'nftoken-issuance': {
+          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1K4DLji: JSON.stringify({
+            assetId: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
+            txid: '841f14f80b3f9f0b0d9f353c7ec2d517121ed948542bd0a0f1c080c29141eaff'
+          }),
+          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1Tuiw2M: JSON.stringify({
+            assetId: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
+            txid: '841f14f80b3f9f0b0d9f353c7ec2d517121ed948542bd0a0f1c080c29141eaff'
+          }),
+          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1bFs2is: JSON.stringify({
+            assetId: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
+            txid: '841f14f80b3f9f0b0d9f353c7ec2d517121ed948542bd0a0f1c080c29141eaff'
+          }),
+          Tk5xp9oaUMw1uZsy7nz6UjZLM2j9La77r4xNnF: JSON.stringify({
+            assetId: 'Un9SCo6v9JUa23TBcKwbW8Sr4Ytcvt2XS4NXwe',
+            txid: '813f5b53220ff81bfecb1d818b33e76b0abd5ad7ebdc57bbbec9e5df6d104afd'
+          })
         },
         'nftoken-addresses': {
           Tk97fk8Rg27toQW68faxhnDuYeFEoLC1K4DLji: '["bcrt1qa48jdr7u553yve2ndlmuahjl0swnakswekpslu"]',
@@ -1377,11 +1398,23 @@ describe('Parse & store Colored Coins tx with non-fungible tokens', function() {
           LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v: JSON.stringify(testMetadata[0].metadata),
           Un9SCo6v9JUa23TBcKwbW8Sr4Ytcvt2XS4NXwe: JSON.stringify(testMetadata[1].metadata)
         },
-        'nftoken-asset': {
-          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1K4DLji: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
-          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1Tuiw2M: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
-          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1bFs2is: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
-          Tk5xp9oaUMw1uZsy7nz6UjZLM2j9La77r4xNnF: 'Un9SCo6v9JUa23TBcKwbW8Sr4Ytcvt2XS4NXwe'
+        'nftoken-issuance': {
+          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1K4DLji: JSON.stringify({
+            assetId: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
+            txid: '841f14f80b3f9f0b0d9f353c7ec2d517121ed948542bd0a0f1c080c29141eaff'
+          }),
+          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1Tuiw2M: JSON.stringify({
+            assetId: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
+            txid: '841f14f80b3f9f0b0d9f353c7ec2d517121ed948542bd0a0f1c080c29141eaff'
+          }),
+          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1bFs2is: JSON.stringify({
+            assetId: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
+            txid: '841f14f80b3f9f0b0d9f353c7ec2d517121ed948542bd0a0f1c080c29141eaff'
+          }),
+          Tk5xp9oaUMw1uZsy7nz6UjZLM2j9La77r4xNnF: JSON.stringify({
+            assetId: 'Un9SCo6v9JUa23TBcKwbW8Sr4Ytcvt2XS4NXwe',
+            txid: '813f5b53220ff81bfecb1d818b33e76b0abd5ad7ebdc57bbbec9e5df6d104afd'
+          })
         },
         'nftoken-addresses': {
           Tk97fk8Rg27toQW68faxhnDuYeFEoLC1K4DLji: '["bcrt1qa48jdr7u553yve2ndlmuahjl0swnakswekpslu","bcrt1qxjcfudh4apavr6xfp43ws6t57362eaxd90ncjn"]',
@@ -1459,12 +1492,27 @@ describe('Parse & store Colored Coins tx with non-fungible tokens', function() {
           LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v: JSON.stringify(testMetadata[0].metadata),
           Un9SCo6v9JUa23TBcKwbW8Sr4Ytcvt2XS4NXwe: JSON.stringify(testMetadata[1].metadata)
         },
-        'nftoken-asset': {
-          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1K4DLji: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
-          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1Tuiw2M: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
-          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1bFs2is: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
-          Tk5xp9oaUMw1uZsy7nz6UjZLM2j9La77r4xNnF: 'Un9SCo6v9JUa23TBcKwbW8Sr4Ytcvt2XS4NXwe',
-          Tk73UQeUYAHFinfNiNFL8VxvH3CVWksHUCzDnu: 'Un9SCo6v9JUa23TBcKwbW8Sr4Ytcvt2XS4NXwe'
+        'nftoken-issuance': {
+          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1K4DLji: JSON.stringify({
+            assetId: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
+            txid: '841f14f80b3f9f0b0d9f353c7ec2d517121ed948542bd0a0f1c080c29141eaff'
+          }),
+          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1Tuiw2M: JSON.stringify({
+            assetId: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
+            txid: '841f14f80b3f9f0b0d9f353c7ec2d517121ed948542bd0a0f1c080c29141eaff'
+          }),
+          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1bFs2is: JSON.stringify({
+            assetId: 'LnAR9VJaHTtHQPeMaPTVWvKo6nLmBGoZH5z92v',
+            txid: '841f14f80b3f9f0b0d9f353c7ec2d517121ed948542bd0a0f1c080c29141eaff'
+          }),
+          Tk5xp9oaUMw1uZsy7nz6UjZLM2j9La77r4xNnF: JSON.stringify({
+            assetId: 'Un9SCo6v9JUa23TBcKwbW8Sr4Ytcvt2XS4NXwe',
+            txid: '813f5b53220ff81bfecb1d818b33e76b0abd5ad7ebdc57bbbec9e5df6d104afd'
+          }),
+          Tk73UQeUYAHFinfNiNFL8VxvH3CVWksHUCzDnu: JSON.stringify({
+            assetId: 'Un9SCo6v9JUa23TBcKwbW8Sr4Ytcvt2XS4NXwe',
+            txid: 'eb11a3345c9cb2a95b360ecd391792255bc301902ad6a1d3b4220ee23a526ffb'
+          })
         },
         'nftoken-addresses': {
           Tk97fk8Rg27toQW68faxhnDuYeFEoLC1K4DLji: '["bcrt1qa48jdr7u553yve2ndlmuahjl0swnakswekpslu","bcrt1qxjcfudh4apavr6xfp43ws6t57362eaxd90ncjn"]',
@@ -1556,7 +1604,12 @@ describe('Parse & store Colored Coins tx with non-fungible tokens', function() {
           updateGlobalUtxosChanges(txUtxosChanges);
           const txProcResult = txProcResults[idx];
 
-          assert.deepEqual(utxosChanges, txProcResult.utxosChanges);
+          try {
+            assert.deepEqual(utxosChanges, txProcResult.utxosChanges);
+          }
+          catch (err) {
+            return cb(err);
+          }
 
           // Save result of parsed transaction
           parser.updateMempoolTransactionUtxosChanges(tx, txUtxosChanges, err => {
@@ -1570,7 +1623,12 @@ describe('Parse & store Colored Coins tx with non-fungible tokens', function() {
                     cb(err);
                   }
                   else {
-                    assert.deepEqual(result, dbKeyData);
+                    try {
+                      assert.deepEqual(result, dbKeyData, `Redis key: ${dbKey}`);
+                    }
+                    catch (err) {
+                      return cb(err);
+                    }
 
                     cb();
                   }
@@ -1612,7 +1670,7 @@ describe('Parse & store Colored Coins tx with non-fungible tokens', function() {
             }
             else {
               try {
-                assert.deepEqual(result, dbKeyData);
+                assert.deepEqual(result, dbKeyData, `Redis key: ${dbKey}`);
               }
               catch (err) {
                 return cb(err);
@@ -2443,9 +2501,9 @@ describe('New and updated API methods for non-fungible assets/tokens', function 
     });
   });
 
-  describe('Exercise getNFTokenAsset API method', function () {
+  describe('Exercise getNFTokenIssuance API method', function () {
     it('should return nothing (undefined) if an invalid non-fungible token ID is passed', function (done) {
-      parser.getNFTokenAsset({tokenId: 'bla'}, (err, result) => {
+      parser.getNFTokenIssuance({tokenId: 'bla'}, (err, result) => {
         if (err) {
           done(err);
         }
@@ -2462,17 +2520,32 @@ describe('New and updated API methods for non-fungible assets/tokens', function 
       });
     });
 
-    it('should return the correct asset ID for non-fungible tokens', function (done) {
+    it('should return the correct issuance info for non-fungible tokens', function (done) {
       const expectedResult = [
-        {assetId: testAssetIds[0]},
-        {assetId: testAssetIds[0]},
-        {assetId: testAssetIds[0]},
-        {assetId: testAssetIds[1]},
-        {assetId: testAssetIds[1]}
+        {
+          assetId: testAssetIds[0],
+          txid: testTransactions[0].txid
+        },
+        {
+          assetId: testAssetIds[0],
+          txid: testTransactions[0].txid
+        },
+        {
+          assetId: testAssetIds[0],
+          txid: testTransactions[0].txid
+        },
+        {
+          assetId: testAssetIds[1],
+          txid: testTransactions[1].txid
+        },
+        {
+          assetId: testAssetIds[1],
+          txid: testTransactions[3].txid
+        }
       ];
 
       async.reduce(testNFTokenIds, [], function(compoundResult, tokenId, cb) {
-        parser.getNFTokenAsset({tokenId}, (err, result) => {
+        parser.getNFTokenIssuance({tokenId}, (err, result) => {
           if (err) {
             cb(err);
           } else {

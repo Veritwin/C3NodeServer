@@ -144,9 +144,9 @@ var routes = [
     ]
   },
   {
-    path: '/getNFTokenAsset',
+    path: '/getNFTokenIssuance',
     method: 'post',
-    functionName: 'getNFTokenAsset',
+    functionName: 'getNFTokenIssuance',
     params: ['tokenId'],
     optionalParams: [
       'waitForParsing'
