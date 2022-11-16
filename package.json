@@ -49,6 +49,6 @@
   },
   "repository": "git@bitbucket.org:blockchainofthings/c3nodeserver.git",
   "devDependencies": {
-    "mocha": "^9.2.0"
+    "mocha": "^10.1.0"
   }
 }
