@@ -1588,6 +1588,8 @@ describe('Parse & store Colored Coins tx with non-fungible tokens', function() {
   });
 
   it('Parse transactions and save result iteratively (for each parsed tx)', function (done) {
+    this.timeout(0);
+
     async.eachOfSeries(testTransactions, function (tx, idx, cb) {
       const txUtxosChanges = {
         used: {},
@@ -2692,6 +2694,53 @@ describe('New and updated API methods for non-fungible assets/tokens', function 
         }
       });
     });
+
+    it('should return the correct token holding info for non-fungible tokens (with filter addresses)', function (done) {
+      const expectedResult = [
+        false,
+        {
+          address: 'bcrt1qwxpph6llpcxvgcyrmmhp2ge6lmral9zt3csn7t',
+          unconfirmed: true
+        },
+        false,
+        {
+          address: 'bcrt1qh8xjlya8nnxhr2qyl7u6qkz2dg4tqq2v2k8clj',
+          unconfirmed: false
+        },
+        false
+      ];
+      const addresses = [
+        'bcrt1qkyq535qt8ksnhmvj4326mry7wmdsaewnclgljc',
+        'bcrt1qwxpph6llpcxvgcyrmmhp2ge6lmral9zt3csn7t',
+        'bcrt1qh8xjlya8nnxhr2qyl7u6qkz2dg4tqq2v2k8clj'
+      ];
+
+      async.reduce(testNFTokenIds, [], function(compoundResult, tokenId, cb) {
+        parser.getNFTokenOwner({tokenId, addresses}, (err, result) => {
+          if (err) {
+            cb(err);
+          } else {
+            compoundResult.push(result);
+
+            cb(null, compoundResult);
+          }
+        });
+      }, (err, finalResult) => {
+        if (err) {
+          done(err);
+        }
+        else {
+          try {
+            assert.deepEqual(finalResult, expectedResult);
+          }
+          catch (err) {
+            return done(err);
+          }
+
+          done();
+        }
+      });
+    });
   });
 
   describe('Exercise getAllNFTokensOwner API method', function () {
@@ -2838,6 +2887,93 @@ describe('New and updated API methods for non-fungible assets/tokens', function 
 
       async.reduce(testAssetIds.slice(0, -1), [], function(compoundResult, assetId, cb) {
         parser.getAllNFTokensOwner({assetId, numOfConfirmations: 1}, (err, result) => {
+          if (err) {
+            cb(err);
+          } else {
+            compoundResult.push(result);
+
+            cb(null, compoundResult);
+          }
+        });
+      }, (err, finalResult) => {
+        if (err) {
+          done(err);
+        }
+        else {
+          try {
+            assert.deepEqual(finalResult, expectedResult);
+          }
+          catch (err) {
+            return done(err);
+          }
+
+          done();
+        }
+      });
+    });
+
+    it('should return the correct token holding info for non-fungible assets (with filter addresses: some)', function (done) {
+      const expectedResult = [
+        {
+          Tk97fk8Rg27toQW68faxhnDuYeFEoLC1Tuiw2M: {
+            address: 'bcrt1qwxpph6llpcxvgcyrmmhp2ge6lmral9zt3csn7t',
+            unconfirmed: true
+          }
+        },
+        {
+          Tk5xp9oaUMw1uZsy7nz6UjZLM2j9La77r4xNnF: {
+            address: 'bcrt1qh8xjlya8nnxhr2qyl7u6qkz2dg4tqq2v2k8clj',
+            unconfirmed: false
+          }
+        }
+      ];
+      const addresses = [
+          'bcrt1qkyq535qt8ksnhmvj4326mry7wmdsaewnclgljc',
+          'bcrt1qwxpph6llpcxvgcyrmmhp2ge6lmral9zt3csn7t',
+          'bcrt1qh8xjlya8nnxhr2qyl7u6qkz2dg4tqq2v2k8clj'
+      ];
+
+      async.reduce(testAssetIds.slice(0, -1), [], function(compoundResult, assetId, cb) {
+        parser.getAllNFTokensOwner({assetId, addresses}, (err, result) => {
+          if (err) {
+            cb(err);
+          } else {
+            compoundResult.push(result);
+
+            cb(null, compoundResult);
+          }
+        });
+      }, (err, finalResult) => {
+        if (err) {
+          done(err);
+        }
+        else {
+          try {
+            assert.deepEqual(finalResult, expectedResult);
+          }
+          catch (err) {
+            return done(err);
+          }
+
+          done();
+        }
+      });
+    });
+
+    it('should return the correct token holding info for non-fungible assets (with filter addresses: none)', function (done) {
+      const expectedResult = [
+        {
+        },
+        {
+        }
+      ];
+      const addresses = [
+        'bcrt1qkyq535qt8ksnhmvj4326mry7wmdsaewnclgljc',
+        'bcrt1ql540dkdwc43f95f758cqjfjfa9e4vkjfsy5gvr'
+      ];
+
+      async.reduce(testAssetIds.slice(0, -1), [], function(compoundResult, assetId, cb) {
+        parser.getAllNFTokensOwner({assetId, addresses}, (err, result) => {
           if (err) {
             cb(err);
           } else {

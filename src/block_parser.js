@@ -2307,8 +2307,8 @@ module.exports = function (args) {
    */
 
   /**
-   * Callback for handling the result of getting the bitcoin address that currently holds a non-fungible token
-   * @callback getNFTokenOwnerCallback
+   * Callback for handling the result of getting a non-fungible token holding information
+   * @callback getNFTokenHoldingInfoCallback
    * @param {*} [error] An error message, or null if the function successfully returned
    * @param {NFTokenHolding} [holdingInfo] The info about the non-fungible token possession
    */
@@ -2318,10 +2318,17 @@ module.exports = function (args) {
    * @param {string} tokenId The non-fungible token ID
    * @param {number} numOfConfirmations Minimum required confirmations that a (non-fungible token paying) bitcoin tx
    *                                     needs to have to be included in the processing
-   * @param {getNFTokenOwnerCallback} cb The callback for handling the result
+   * @param {string[]} [filterAddresses] A list of bitcoin addresses used to restrict the search for an UTXO that
+   *                                      currently holds the non-fungible token
+   * @param {getNFTokenHoldingInfoCallback} cb The callback for handling the result
    * @private
    */
-  function _getNFTokenHoldingInfo(tokenId, numOfConfirmations,  cb) {
+  function _getNFTokenHoldingInfo(tokenId, numOfConfirmations, filterAddresses,  cb) {
+    if (typeof filterAddresses === 'function') {
+      cb = filterAddresses;
+      filterAddresses = undefined;
+    }
+
     // Get addresses associated with non-fungible token
     redis.hget('nftoken-addresses', tokenId, (err, strAddresses) => {
       if (err) {
@@ -2340,6 +2347,11 @@ module.exports = function (args) {
       }
       catch (err) {
         return cb(err);
+      }
+
+      if (filterAddresses) {
+        // Only take into account the specified addresses
+        addresses = addresses.filter((address) => filterAddresses.indexOf(address) !== -1);
       }
 
       if (addresses.length > 0) {
@@ -2415,17 +2427,30 @@ module.exports = function (args) {
   }
 
   /**
+   * Callback for handling the result of getting the bitcoin address that currently holds a non-fungible token
+   * @callback getNFTokenOwnerCallback
+   * @param {*} [error] An error message, or null if the function successfully returned
+   * @param {(NFTokenHolding|boolean)} [holdingInfo] The info about the non-fungible token possession, or the boolean
+   *                                                  value false indicating that the specified addresses do not hold
+   *                                                  the non-fungible token
+   */
+
+  /**
    * API method used to get the bitcoin address that currently holds a non-fungible token
    * @param {Object} args
    * @param {string} args.tokenId The non-fungible token ID
    * @param {number} [args.numOfConfirmations=0] Minimum required confirmations that a (non-fungible token paying)
    *                                              bitcoin tx needs to have to be included in the processing
+   * @param {string[]} [args.addresses] A list of bitcoin addresses specifying the addresses that are expected to hold
+   *                                     the non-fungible token. If the non-fungible token is not currently held by
+   *                                     any of these addresses, a false value is returned instead
    * @param {boolean} [args.waitForParsing] Indicates whether it should wait for the blockchain parsing to complete
    *                                         before starting its internal processing
    * @param {getNFTokenOwnerCallback} cb The callback for handling the result
    */
   function getNFTokenOwner(args, cb) {
     const numOfConfirmations = args.numOfConfirmations || 0;
+    const filterAddresses = args.addresses;
 
     if (args.waitForParsing) {
       parseControl.doProcess(getNFTokenOwner_innerProcess);
@@ -2435,7 +2460,19 @@ module.exports = function (args) {
     }
 
     function getNFTokenOwner_innerProcess() {
-      _getNFTokenHoldingInfo(args.tokenId, numOfConfirmations, cb);
+      _getNFTokenHoldingInfo(args.tokenId, numOfConfirmations, filterAddresses, (err, holdingInfo) => {
+        if (err) {
+          cb(err);
+        }
+        else {
+          cb(
+            null,
+            filterAddresses && holdingInfo && !holdingInfo.address
+              ? false
+              : holdingInfo
+          );
+        }
+      });
     }
   }
 
@@ -2558,12 +2595,16 @@ module.exports = function (args) {
    * @param {string} args.assetId The asset ID
    * @param {number} [args.numOfConfirmations=0] Minimum required confirmations that a (non-fungible token paying)
    *                                              bitcoin tx needs to have to be included in the processing
+   * @param {string[]} [args.addresses] A list of bitcoin addresses used to restrict the non-fungible tokens to be
+   *                                     included in the processing. Only the non-fungible tokens currently held by any
+   *                                     of these addresses should be returned
    * @param {boolean} [args.waitForParsing] Indicates whether it should wait for the blockchain parsing to complete
    *                                         before starting its internal processing
    * @param {getAllNFTokensOwnerCallback} cb The callback for handling the result
    */
   function getAllNFTokensOwner(args, cb) {
     const numOfConfirmations = args.numOfConfirmations || 0;
+    const filterAddresses = args.addresses;
 
     if (args.waitForParsing) {
       parseControl.doProcess(getAllNFTokensOwner_innerProcess);
@@ -2586,13 +2627,15 @@ module.exports = function (args) {
         const tokenIdHoldingInfo = {};
 
         async.eachSeries(tokenIds, function(tokenId, cb) {
-          _getNFTokenHoldingInfo(tokenId, numOfConfirmations, (err, holdingInfo) => {
+          _getNFTokenHoldingInfo(tokenId, numOfConfirmations, filterAddresses, (err, holdingInfo) => {
             if (err) {
               return cb(err);
             }
 
-            // Record non-fungible token holding info
-            tokenIdHoldingInfo[tokenId] = holdingInfo;
+            if (!filterAddresses || (holdingInfo && holdingInfo.address)) {
+              // Record non-fungible token holding info
+              tokenIdHoldingInfo[tokenId] = holdingInfo;
+            }
 
             cb();
           });

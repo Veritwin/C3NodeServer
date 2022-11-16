@@ -159,6 +159,7 @@ var routes = [
     params: ['tokenId'],
     optionalParams: [
       'numOfConfirmations',
+      'addresses',
       'waitForParsing'
     ]
   },
@@ -169,6 +170,7 @@ var routes = [
     params: ['assetId'],
     optionalParams: [
       'numOfConfirmations',
+      'addresses',
       'waitForParsing'
     ]
   },
