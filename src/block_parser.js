@@ -126,11 +126,13 @@ module.exports = function (args) {
           // Call 'decodeRawTransaction' asynchronously (with a callback) to include colored coins data
           decodeRawTransaction(transaction, (err, decTransact) => {
             if (err) {
-              return cb2(err);
+              console.error(new Date().toISOString(), '-', 'Error decoding raw transaction:', transaction, err);
+            }
+            else {
+              transactions.push(decTransact);
+              block.mapTransaction[decTransact.txid] = decTransact;
             }
 
-            transactions.push(decTransact);
-            block.mapTransaction[decTransact.txid] = decTransact;
             cb2();
           });
         }, err => {
