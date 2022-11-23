@@ -192,7 +192,7 @@ module.exports = function (args) {
         try {
           coloredData = CCTransaction.fromHex(hex).toJson()
         } catch (e) {
-          console.log('Invalid CC transaction.')
+          console.log('Invalid CC transaction.', e)
         }
       }
       return coloredData
