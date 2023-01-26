@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.16] - 2023-01-26
+
+### Changes
+- No source code changes; updates only to license, copyright and source code repository information.
+
 ## [0.1.15] - 2022-11-23
 
 ### Fixes
