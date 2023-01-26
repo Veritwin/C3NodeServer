@@ -55,6 +55,6 @@ parser_props.conf as appropriate— configuration file are properly configured:
 
 # License
 
-This project is for Blockchain of Things' internal use only.
+This software is released under the [MIT License](LICENSE). Feel free to fork, and modify!
 
-Copyright © 2018-2022, Blockchain of Things Inc.
+Copyright © 2018-2023, Blockchain of Things Inc.
