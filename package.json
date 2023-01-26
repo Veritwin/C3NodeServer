@@ -47,7 +47,7 @@
     "ipfs-utils": "Note: although this library does not directly depend on this module, it is added as a dependency here to force the use of version 9.0.2, which is the latest version that is compatible with Node.js 14.x",
     "tiny-secp256k1": "Note: although this library does not directly depend on this module, it is added as a dependency here to force the use of version 1.1.6 (or higher) so it can be successfully built on Node.js 14.x"
   },
-  "repository": "git@bitbucket.org:blockchainofthings/c3nodeserver.git",
+  "repository": "git@github.com:blockchainofthings/C3NodeServer.git",
   "devDependencies": {
     "mocha": "^10.1.0"
   }
