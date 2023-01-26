@@ -1,7 +1,7 @@
 # Catenis Colored Coins Node Server
 
 This is the implementation of the Catenis Colored Coins node server application, which is based on the [Colored Coins
-Full-Node](https://github.com/Colored-Coins/Full-Node) application from [coloredcoins.org](http://coloredcoins.org).
+Full-Node](https://github.com/Colored-Coins/Full-Node) application from [ColoredCoins.org](https://github.com/Colored-Coins).
 
 # Deployment
 
