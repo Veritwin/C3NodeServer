@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.15] - 2022-11-23
+
+### Fixes
+- Change handling of error while decoding raw transactions to avoid reprocessing the same transaction block over and
+ over.
+
+## [0.1.14] - 2022-11-16
+
+### Changes
+- Enhancements to the API methods getNFTokenOwner and getAllNFTokensOwner: new optional argument 'addresses' used to
+ restrict the processing.
+
+## [0.1.13] - 2022-07-22
+
+### Changes
+- Replace the Redis DB key 'nftoken-asset' with the new DB key 'nftoken-issuance'.
+- Record the ID of the transaction that issued the non-fungible token (in addition to the asset ID).
+- Replace the API method getNFTokenAsset with the new API method getNFTokenIssuance.
+
 ## [0.1.12] - 2022-06-16
 
 ### Fixes
