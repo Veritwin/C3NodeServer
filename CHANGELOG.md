@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.17] - 2023-02-09
+
+### Changes
+- No source code changes; update package.json so dependency modules not published on NPM can be freely downloaded.
+
 ## [0.1.16] - 2023-01-26
 
 ### Changes
