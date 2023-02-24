@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.18] - 2023-02-24
+
+### Changes
+- Adjustments for C3 Node Server to work with 'signet' Bitcoin network.
+- Update configuration files.
+
+### Fixes
+- Upgrade dependency modules to mitigate security vulnerabilities.
+
 ## [0.1.17] - 2023-02-09
 
 ### Changes
