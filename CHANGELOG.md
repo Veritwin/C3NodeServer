@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.19] - 2023-03-11
+
+### Changes
+- Enhancement to enable working with Bitcoin Core even when it has more than one loaded wallet; new property
+`bitcoinWallet` added to configuration file.
+
 ## [0.1.18] - 2023-02-24
 
 ### Changes
