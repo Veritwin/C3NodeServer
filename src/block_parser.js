@@ -9,7 +9,7 @@ var bufferReverse = require('buffer-reverse')
 var _ = require('lodash')
 var toposort = require('toposort')
 var redisClient = require('redis')
-var bitcoinRpc = require('bitcoin-async')
+var bitcoinRpc = require('@veritwin/bitcoin-async')
 const ClassifyTxOut = require('./ClassifyTxOut');
 const ipfsHttpClient = require('ipfs-http-client').create;
 const { CID } = require('ipfs-http-client');
@@ -55,6 +55,7 @@ module.exports = function (args) {
     user: args.bitcoinUser || 'rpcuser',
     pass: args.bitcoinPass || 'rpcpass',
     path: args.bitcoinPath || '/',
+    wallet: args.bitcoinWallet || undefined,
     timeout: args.bitcoinTimeout || 30000
   }
   var bitcoin = new bitcoinRpc.Client(bitcoinOptions)
@@ -301,7 +302,7 @@ module.exports = function (args) {
     })
 
     var prevOutsBatch = prevTxs.map(function(vin) { return { 'method': 'getrawtransaction', 'params': [vin.txid] } })
-    bitcoin.cmd(prevOutsBatch, function (rawTransaction, cb) {
+    bitcoin.cmd(prevOutsBatch, function (rawTransaction, resHeaders, cb) {
       var prevTx = decodeRawTransaction(bitcoinjs.Transaction.fromHex(rawTransaction))
       var txid = prevTx.id
       prevTxs.forEach(function(vin) {
@@ -1044,7 +1045,9 @@ module.exports = function (args) {
   }
 
   var getMempoolTxids = function (cb) {
-    bitcoin.cmd('getrawmempool', [], cb)
+    bitcoin.cmd('getrawmempool', [], function (err, rawMempool) {
+      cb(err, rawMempool);
+    })
   }
 
   var getNewMempoolTxids = function (mempoolTxids, cb) {
@@ -1073,7 +1076,7 @@ module.exports = function (args) {
         return {method: 'getrawtransaction', params: [txid, 0]}
       })
       var newMempoolTransactions = []
-      bitcoin.cmd(commandsArr, function (rawTransaction, cb) {
+      bitcoin.cmd(commandsArr, function (rawTransaction, resHeaders, cb) {
           // Call 'decodeRawTransaction' asynchronously (with a callback) to include colored coins data
           decodeRawTransaction(bitcoinjs.Transaction.fromHex(rawTransaction), (err, newMempoolTransaction) => {
             if (err) {
@@ -1204,7 +1207,7 @@ module.exports = function (args) {
             params: [address, label, false]
           }
         })
-        bitcoin.cmd(commandsArr, function (ans, cb) { return process.nextTick(cb)}, cb)
+        bitcoin.cmd(commandsArr, function (ans, resHeaders, cb) { return process.nextTick(cb)}, cb)
       },
       function (cb) {
         reindex = false
@@ -1400,7 +1403,7 @@ module.exports = function (args) {
               var batch = txids.map(function(txid) { return { 'method': 'getrawtransaction', 'params': [txid] } })
               bitcoin.cmd(
                 batch,
-                function (rawTransaction, cb2) {
+                function (rawTransaction, resHeaders, cb2) {
                   // Call 'decodeRawTransaction' asynchronously (with a callback) to include colored coins data
                   decodeRawTransaction(bitcoinjs.Transaction.fromHex(rawTransaction), (err, tx) => {
                     if (err) {
@@ -1512,7 +1515,7 @@ module.exports = function (args) {
         })
         bitcoin.cmd('getblockcount', [], function (err, count) {
           if (err) return cb(err)
-          bitcoin.cmd(batch, function (rawTransaction, cb) {
+          bitcoin.cmd(batch, function (rawTransaction, resHeaders, cb) {
             var transaction = decodeRawTransaction(bitcoinjs.Transaction.fromHex(rawTransaction))
             var tx = txs[transaction.txid]
             addColoredIOs(transaction, function (err) {
@@ -1542,7 +1545,7 @@ module.exports = function (args) {
             var prevOutsBatch = Object.keys(prevOutputIndex).map(function (txid) {
               return {'method': 'getrawtransaction', 'params': [txid]}
             })
-            bitcoin.cmd(prevOutsBatch, function (rawTransaction, cb) {
+            bitcoin.cmd(prevOutsBatch, function (rawTransaction, resHeaders, cb) {
               var transaction = decodeRawTransaction(bitcoinjs.Transaction.fromHex(rawTransaction))
               var txid = transaction.id
               prevOutputIndex[transaction.txid].forEach(function (vin) {
@@ -1577,7 +1580,9 @@ module.exports = function (args) {
     var btcInfo
     async.waterfall([
       function (cb) {
-        bitcoin.cmd('getblockchaininfo', [], cb)
+        bitcoin.cmd('getblockchaininfo', [], function (err, bcInfo) {
+          cb(err, bcInfo)
+        })
       },
       function (_btcInfo, cb) {
         if (typeof _btcInfo === 'function') {
@@ -1586,10 +1591,14 @@ module.exports = function (args) {
         }
         if (!_btcInfo) return cb('No reply from getblockchaininfo')
         btcInfo = _btcInfo
-        bitcoin.cmd('getblockhash', [btcInfo.blocks], cb)
+        bitcoin.cmd('getblockhash', [btcInfo.blocks], function (err, blockHash) {
+          cb(err, blockHash)
+        })
       },
       function (lastBlockHash, cb) {
-        bitcoin.cmd('getblock', [lastBlockHash], cb)
+        bitcoin.cmd('getblock', [lastBlockHash], function (err, block) {
+          cb(err, block)
+        })
       }
     ],
     function (err, lastBlockInfo) {

@@ -207,6 +207,7 @@ module.exports = function (propertiesFile) {
     properties.bitcoinUser = properties.bitcoinUser || process.env.BITCOIND_USER || 'rpcuser'
     properties.bitcoinPass = properties.bitcoinPass || process.env.BITCOIND_PASS || 'rpcpass'
     properties.bitcoinPath = properties.bitcoinPath || process.env.BITCOIND_PATH || '/'
+    properties.bitcoinWallet = properties.bitcoinWallet || process.env.BITCOIND_WALLET || undefined
     properties.bitcoinTimeout = parseInt(properties.bitcoinTimeout || process.env.BITCOIND_TIMEOUT || 30000, 10)
   }
 

@@ -48,6 +48,7 @@ parser_props.conf as appropriate— configuration file are properly configured:
 - ***bitcoinPort*** - IP port assigned to Bitcoin Core's JSON-RPC connections
 - ***bitcoinUser*** - Username for establishing Bitcoin Core's JSON-RPC connections
 - ***bitcoinPass*** - Password for establishing Bitcoin Core's JSON-RPC connections
+- ***bitcoinWallet*** - Bitcoin Core's wallet to be used. If not defined, the single wallet currently loaded onto Bitcoin Core is used
 - ***server.host*** - Host name/IP address where Catenis Colored Coins node server should listen to connections
 - ***server.httpPort*** - IP port where Catenis Colored Coins node server should listen to connections
 - ***server.userName*** - Username for establishing connection with Catenis Colored Coins node server
