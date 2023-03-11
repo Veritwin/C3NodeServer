@@ -6,22 +6,10 @@ const assert = require('assert');
 const bitcoinLib = require('bitcoinjs-lib');
 const ccIssuanceEncoder = require('catenis-colored-coins/cc-issuance-encoder');
 const async = require('async');
-const blockParser = require('../src/block_parser');
+const config = require('../utils/config.js')('parser_props.test.conf');
+const parser = require('../src/block_parser')(config);
 
 const pubKeyLength = 33;
-
-const parser = blockParser({
-  parser:{
-    parseControlLoggingOn:false
-  },
-  redisHost: 'catenis-local-1',
-  network:'regtest',
-  bitcoinHost: 'catenis-local-1',
-  bitcoinPort: '18443',
-  bitcoinUser: 'LocalRegtestNYRioBlockchainWizards',
-  bitcoinPass: '52EBq4isiHq0xIM1DIs8lNrODPziLJCpQBOUj1tJdSI=',
-  ipfsHost:'catenis-local-1'
-});
 
 function encodeMultiSigOutput (m, pubKeys) {
   if (typeof m !== 'number' || !Array.isArray(pubKeys)) {
